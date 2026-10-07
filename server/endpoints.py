@@ -23,6 +23,8 @@ HELLO_RESP = 'hello'
 STATES_EP = '/states'
 STATES_RESP = 'States:'
 MESSAGE = 'Message'
+HEALTH_EP = '/health'
+HEALTH_RESP = 'status'
 
 
 @api.route(HELLO_EP)
@@ -67,3 +69,15 @@ class States(Resource):
         if states is None:
             raise wz.ServiceUnavailable('Database may be down.')
         return {STATES_RESP: states}
+
+
+@api.route(HEALTH_EP)
+class Health(Resource):
+    """
+    A simple health check to confirm the server is up.
+    """
+    def get(self):
+        """
+        Returns ok if the server is running.
+        """
+        return {HEALTH_RESP: 'ok'}
