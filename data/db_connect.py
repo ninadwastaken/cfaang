@@ -39,6 +39,7 @@ def connect_db():
         else:
             print("Connecting to Mongo locally.")
             client = pm.MongoClient()
+            
     return client
 
 

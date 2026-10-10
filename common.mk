@@ -1,4 +1,7 @@
 # common make vars and targets:
+PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+export PYTHONPATH := $(PROJECT_ROOT)$(if $(PYTHONPATH),:$(PYTHONPATH))
+
 export LINTER = flake8
 export PYLINTFLAGS = --exclude=__main__.py
 
