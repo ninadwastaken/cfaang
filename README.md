@@ -19,3 +19,9 @@ Or use the Makefile shortcut:
 make local_build
 ```
 
+View MongoDB Logs: 
+
+```sh
+docker compose logs --tail=50 -f mongo
+```
+
