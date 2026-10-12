@@ -34,3 +34,21 @@ def test_health():
     assert resp.status_code == OK
     resp_json = resp.get_json()
     assert resp_json[ep.HEALTH_RESP] == 'ok'
+
+
+FAKE_PLACES = [{'osm_id': 1, 'properties': {'amenity': 'cafe'}}]
+
+
+@patch('places.query.get_places', return_value=FAKE_PLACES)
+def test_get_places(mock_get_places):
+    resp = TEST_CLIENT.get(f'{ep.PLACES_EP}?amenity=cafe&limit=5')
+    assert resp.status_code == OK
+    resp_json = resp.get_json()
+    assert resp_json[ep.PLACES_RESP] == FAKE_PLACES
+    assert resp_json['count'] == 1
+    mock_get_places.assert_called_with(amenity='cafe', limit=5)
+
+
+def test_get_places_bad_limit():
+    resp = TEST_CLIENT.get(f'{ep.PLACES_EP}?limit=abc')
+    assert resp.status_code == BAD_REQUEST
