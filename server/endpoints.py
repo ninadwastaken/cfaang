@@ -69,6 +69,10 @@ class States(Resource):
         """
         The get method will return a list of all states in the database.
         """
+        # check if user is authorized to read states
+        if not sec.is_read_places_allowed(request.headers.get('who', '')):
+            raise wz.Forbidden('Not authorized')
+        
         states = sqry.get_states()
         if states is None:
             raise wz.ServiceUnavailable('Database may be down.')
