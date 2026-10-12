@@ -12,6 +12,7 @@ import werkzeug.exceptions as wz
 
 import states.query as sqry
 import places.query as pqry
+import security.security as sec
 
 app = Flask(__name__)
 CORS(app)
@@ -89,6 +90,11 @@ class Places(Resource):
         """
         Return NYC places, like /places?amenity=cafe&limit=10.
         """
+
+        # check if user is authorized to read places
+        if not sec.is_read_places_allowed(request.headers.get('who', '')):
+            raise wz.Forbidden('Not authorized')
+
         amenity = request.args.get('amenity')
         try:
             limit = int(request.args.get('limit', pqry.DEFAULT_LIMIT))
