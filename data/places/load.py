@@ -2,6 +2,9 @@ import requests
 from data.db_connect import connect_db
 import os 
 import time
+from uuid import uuid4
+
+from pymongo.errors import PyMongoError
 
 LOCAL = "0"
 CLOUD = "1"
@@ -46,7 +49,32 @@ def fetch_places(url, query):
         return data
 
 
-if os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
+def replace_places(db, documents):
+    """Stage a complete import before replacing places; last successful rename wins."""
+    if not documents:
+        return None
+
+    staging_name = f"places_import_{uuid4().hex}"
+    staging = db[staging_name]
+    try:
+        for name, index in db['places'].index_information().items():
+            if name == '_id_':
+                continue
+            options = {key: value for key, value in index.items()
+                       if key not in ('key', 'v', 'ns')}
+            staging.create_index(index['key'], name=name, **options)
+        result = staging.insert_many(documents)
+        staging.rename('places', dropTarget=True)
+        return result
+    finally:
+        # Use the original name: after a successful rename, it no longer exists.
+        try:
+            db.drop_collection(staging_name)
+        except PyMongoError as exc:
+            print(f"Could not clean up temporary collection {staging_name}: {exc}")
+
+
+if __name__ == '__main__' and os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
     # Find places to eat, hang out, explore, and do activities within NYC.
     overpass_url = os.environ.get('OVERPASS_URL', "https://overpass-api.de/api/interpreter")
     overpass_query = """
@@ -95,9 +123,7 @@ if os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
     if documents:
         client = connect_db()
         db = client["nyc_map"]
-        collection = db["places"]
-        collection.delete_many({}) # Optional: Clear collection before reload
-        result = collection.insert_many(documents)
+        result = replace_places(db, documents)
         print(f"Successfully imported {len(result.inserted_ids)} NYC places into local MongoDB!")
     else:
         print("No records found to import.")
