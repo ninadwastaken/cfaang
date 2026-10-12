@@ -29,3 +29,6 @@ local_db:
 
 local_build:
 	docker compose up --build
+
+clean: 
+	docker compose down
