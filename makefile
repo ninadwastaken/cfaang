@@ -31,5 +31,9 @@ local_build:
 	docker compose up -d mongo
 	docker compose up --build --no-deps api
 
+local_build_quite:
+	docker compose up -d mongo
+	docker compose up --build --no-deps -d api
+
 clean: 
 	docker compose down
