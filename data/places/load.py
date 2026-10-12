@@ -8,14 +8,17 @@ from pymongo.errors import PyMongoError
 
 LOCAL = "0"
 CLOUD = "1"
+DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 
-def fetch_places(url, query):
+def fetch_places(url, query, fallback_urls=()):
     """Retry temporary Overpass failures before allowing a database reload."""
+    endpoints = list(dict.fromkeys((url, *fallback_urls)))
     for attempt in range(3):
+        endpoint = endpoints[min(attempt, len(endpoints) - 1)]
         try:
             response = requests.post(
-                url,
+                endpoint,
                 data={'data': query},
                 headers={
                     "User-Agent": "cfaang-local-dev/1.0",
@@ -29,8 +32,10 @@ def fetch_places(url, query):
             retryable = isinstance(exc, (requests.Timeout, requests.ConnectionError)) or status in (429, 502, 503, 504)
             if retryable and attempt < 2:
                 delay = 10 * (attempt + 1)
-                print(f"Overpass temporarily unavailable ({status or type(exc).__name__}). "
-                      f"Retrying in {delay}s ({attempt + 2}/3)...", flush=True)
+                next_endpoint = endpoints[min(attempt + 1, len(endpoints) - 1)]
+                print(f"Overpass temporarily unavailable at {endpoint} "
+                      f"({status or type(exc).__name__}). "
+                      f"Retrying at {next_endpoint} in {delay}s ({attempt + 2}/3)...", flush=True)
                 time.sleep(delay)
                 continue
             raise SystemExit(f"Overpass request failed after {attempt + 1} attempt(s): {exc}. "
@@ -47,6 +52,38 @@ def fetch_places(url, query):
         if not isinstance(data.get('elements'), list):
             raise SystemExit("Overpass response is missing elements; database records were not changed.")
         return data
+
+
+PLACE_CATEGORIES = {
+    "amenity": "restaurant|cafe|bar|pub|food_court|ice_cream|cinema|theatre|arts_centre|community_centre|library",
+    "leisure": "park|garden|playground|nature_reserve|sports_centre|fitness_centre|swimming_pool|bowling_alley|miniature_golf|escape_game|amusement_arcade",
+    "tourism": "museum|gallery|attraction|viewpoint|zoo|aquarium|theme_park|artwork|picnic_site",
+    "historic": "monument|memorial|castle|ruins|fort|archaeological_site",
+    "natural": "beach|peak|wood",
+    "shop": "books|mall|department_store|music|games|hobby|antiques|art",
+}
+
+
+def fetch_all_places(url, fallback_urls=()):
+    """Fetch categories sequentially; return only after every request succeeds."""
+    elements = {}
+    for number, (category, values) in enumerate(PLACE_CATEGORIES.items(), start=1):
+        print(f"Fetching {category} ({number}/{len(PLACE_CATEGORIES)})...", flush=True)
+        query = f'''
+        [out:json][timeout:90];
+        area["wikidata"="Q60"]->.nyc;
+        nwr["{category}"~"^({values})$"](area.nyc);
+        out center;
+        '''
+        try:
+            data = fetch_places(url, query, fallback_urls)
+        except SystemExit as exc:
+            raise SystemExit(f"Category {category} failed: {exc}") from None
+        for item in data['elements']:
+            # A place may match multiple categories; OSM IDs are unique per type.
+            elements[(item['type'], item['id'])] = item
+        print(f"Fetched {len(data['elements'])} {category} elements.", flush=True)
+    return list(elements.values())
 
 
 def replace_places(db, documents):
@@ -76,25 +113,10 @@ def replace_places(db, documents):
 
 if __name__ == '__main__' and os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
     # Find places to eat, hang out, explore, and do activities within NYC.
-    overpass_url = os.environ.get('OVERPASS_URL', "https://overpass-api.de/api/interpreter")
-    overpass_query = """
-    [out:json][timeout:90];
-    area["wikidata"="Q60"]->.nyc;
-    (
-      nwr["amenity"~"^(restaurant|cafe|bar|pub|food_court|ice_cream|cinema|theatre|arts_centre|community_centre|library)$"](area.nyc);
-      nwr["leisure"~"^(park|garden|playground|nature_reserve|sports_centre|fitness_centre|swimming_pool|bowling_alley|miniature_golf|escape_game|amusement_arcade)$"](area.nyc);
-      nwr["tourism"~"^(museum|gallery|attraction|viewpoint|zoo|aquarium|theme_park|artwork|picnic_site)$"](area.nyc);
-      nwr["historic"~"^(monument|memorial|castle|ruins|fort|archaeological_site)$"](area.nyc);
-      nwr["natural"~"^(beach|peak|wood)$"](area.nyc);
-      nwr["shop"~"^(books|mall|department_store|music|games|hobby|antiques|art)$"](area.nyc);
-    );
-    out center;
-    """
-
+    overpass_url = DEFAULT_OVERPASS_URL
     print("Fetching data from OpenStreetMap Overpass API...")
-    data = fetch_places(overpass_url, overpass_query)
+    elements = fetch_all_places(overpass_url)
 
-    elements = data.get("elements", [])
     print(f"Found {len(elements)} elements. Formatting for GeoJSON...")
 
     #Format the raw OSM data into GeoJSON format
