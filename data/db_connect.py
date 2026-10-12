@@ -38,7 +38,10 @@ def connect_db():
                                     + '?retryWrites=true&w=majority')
         else:
             print("Connecting to Mongo locally.")
-            client = pm.MongoClient()
+            client = pm.MongoClient(
+                os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
+            )
+            
     return client
 
 
