@@ -10,13 +10,13 @@ To create the env for a new developer, run `make dev_env`.
 With Docker running, build and start the API and MongoDB:
 
 ```sh
-docker compose up --build
+make local_build
 ```
 
-Or use the Makefile shortcut:
+then to load data into MongoDB run: 
 
 ```sh
-make local_build
+make local_db
 ```
 
 View MongoDB Logs: 
@@ -25,3 +25,7 @@ View MongoDB Logs:
 docker compose logs --tail=50 -f mongo
 ```
 
+Open MongoDB shell for querying:
+```sh
+docker compose exec mongo mongosh
+```
