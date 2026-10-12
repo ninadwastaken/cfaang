@@ -46,9 +46,23 @@ def test_get_places(mock_get_places):
     resp_json = resp.get_json()
     assert resp_json[ep.PLACES_RESP] == FAKE_PLACES
     assert resp_json['count'] == 1
-    mock_get_places.assert_called_with(amenity='cafe', limit=5)
+    mock_get_places.assert_called_with(category='amenity',
+                                       place_type='cafe', limit=5)
 
 
 def test_get_places_bad_limit():
     resp = TEST_CLIENT.get(f'{ep.PLACES_EP}?limit=abc')
+    assert resp.status_code == BAD_REQUEST
+
+
+@patch('places.query.get_places', return_value=FAKE_PLACES)
+def test_get_places_by_category(mock_get_places):
+    resp = TEST_CLIENT.get(f'{ep.PLACES_EP}?category=leisure&type=park')
+    assert resp.status_code == OK
+    mock_get_places.assert_called_with(category='leisure',
+                                       place_type='park', limit=50)
+
+
+def test_get_places_bad_category():
+    resp = TEST_CLIENT.get(f'{ep.PLACES_EP}?category=password')
     assert resp.status_code == BAD_REQUEST

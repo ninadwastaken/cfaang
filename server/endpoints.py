@@ -77,24 +77,35 @@ class States(Resource):
 @api.route(PLACES_EP)
 class Places(Resource):
     """
-    Get NYC places, optionally filtered by amenity type.
+    Get NYC places, optionally filtered by category and type.
     """
     @api.doc(params={
-        'amenity': 'Amenity type, like cafe, library, or bank',
+        'category': 'One of: amenity, leisure, tourism, historic, '
+                    'natural, shop',
+        'type': 'Type within the category, like park or museum',
+        'amenity': 'Shortcut for category=amenity&type=<value>',
         'limit': 'Max results to return (default 50, max 500)',
     })
     @api.response(HTTPStatus.OK.value, 'Success')
-    @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad limit value')
+    @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
     def get(self):
         """
-        Return NYC places, like /places?amenity=cafe&limit=10.
+        Return NYC places, like /places?category=leisure&type=park.
         """
+        category = request.args.get('category')
+        place_type = request.args.get('type')
         amenity = request.args.get('amenity')
+        if amenity:
+            category, place_type = 'amenity', amenity
         try:
             limit = int(request.args.get('limit', pqry.DEFAULT_LIMIT))
         except ValueError:
             raise wz.BadRequest('limit must be a number.')
-        places = pqry.get_places(amenity=amenity, limit=limit)
+        try:
+            places = pqry.get_places(category=category,
+                                     place_type=place_type, limit=limit)
+        except ValueError as err:
+            raise wz.BadRequest(str(err))
         return {PLACES_RESP: places, 'count': len(places)}
 
 
