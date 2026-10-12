@@ -26,3 +26,6 @@ docs: FORCE
 
 local_db:
 	bash $(DB_DIR)/places/load.sh
+
+local_build:
+	docker compose up --build
