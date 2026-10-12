@@ -27,3 +27,10 @@ def test_get_states():
     resp_json = resp.get_json()
     assert ep.STATES_RESP in resp_json
     assert isinstance(resp_json[ep.STATES_RESP], dict)
+
+
+def test_health():
+    resp = TEST_CLIENT.get(ep.HEALTH_EP)
+    assert resp.status_code == OK
+    resp_json = resp.get_json()
+    assert resp_json[ep.HEALTH_RESP] == 'ok'
