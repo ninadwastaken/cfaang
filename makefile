@@ -25,7 +25,7 @@ docs: FORCE
 	cd $(API_DIR); make docs
 
 local_db:
-	bash $(DB_DIR)/places/load.sh
+	docker compose exec -e PYTHON=python api bash data/places/load.sh
 
 local_build:
 	docker compose up -d mongo
