@@ -47,12 +47,20 @@ def fetch_places(url, query):
 
 
 if os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
-    #Create Overpass query to find amenities (restaurants, cafes, etc.) in NYC
+    # Find places to eat, hang out, explore, and do activities within NYC.
     overpass_url = os.environ.get('OVERPASS_URL', "https://overpass-api.de/api/interpreter")
     overpass_query = """
     [out:json][timeout:90];
-    node["amenity"](40.4774,-74.2589,40.9176,-73.7004);
-    out body;
+    area["wikidata"="Q60"]->.nyc;
+    (
+      nwr["amenity"~"^(restaurant|cafe|bar|pub|food_court|ice_cream|cinema|theatre|arts_centre|community_centre|library)$"](area.nyc);
+      nwr["leisure"~"^(park|garden|playground|nature_reserve|sports_centre|fitness_centre|swimming_pool|bowling_alley|miniature_golf|escape_game|amusement_arcade)$"](area.nyc);
+      nwr["tourism"~"^(museum|gallery|attraction|viewpoint|zoo|aquarium|theme_park|artwork|picnic_site)$"](area.nyc);
+      nwr["historic"~"^(monument|memorial|castle|ruins|fort|archaeological_site)$"](area.nyc);
+      nwr["natural"~"^(beach|peak|wood)$"](area.nyc);
+      nwr["shop"~"^(books|mall|department_store|music|games|hobby|antiques|art)$"](area.nyc);
+    );
+    out center;
     """
 
     print("Fetching data from OpenStreetMap Overpass API...")
@@ -64,12 +72,20 @@ if os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
     #Format the raw OSM data into GeoJSON format
     documents = []
     for item in elements:
+        # Ways and relations use a bounding-box center for their map marker.
+        location = item if item["type"] == "node" else item.get("center", {})
+        lon = location.get("lon")
+        lat = location.get("lat")
+        if lon is None or lat is None:
+            continue
+
         geojson_doc = {
-            "osm_id": item.get("id"),
+            "osm_id": item["id"],
+            "osm_type": item["type"],
             "type": "Feature",
             "geometry": {
                 "type": "Point",
-                "coordinates": [item.get("lon"), item.get("lat")]
+                "coordinates": [lon, lat]
             },
             "properties": item.get("tags", {})
         }
