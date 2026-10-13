@@ -61,20 +61,11 @@ LOGIN = 'login'
 
 # Features:
 PEOPLE = 'people'
-STATES = 'states'
 PLACES = 'places'
 
 security_recs = None
 # These will come from the DB soon:
 temp_recs = {
-    STATES: {
-        READ: {
-            USER_LIST: ['admin'],
-            CHECKS: {
-                LOGIN: True,
-            }
-        }
-    },
     PLACES: {
         READ: {
             USER_LIST: ['admin'],
@@ -113,18 +104,14 @@ def read_feature(feature_name: str) -> dict:
     else:
         return None
 
-def is_read_states_allowed(who: str) -> bool:
-    rules = read_feature(STATES)
+
+@needs_recs
+def is_permitted(feature_name: str, action: str, user: str, **kwargs) -> bool:
+    rules = read_feature(feature_name)
 
     if not rules:
         return False
 
-    return who in rules.get(READ, {}).get(USER_LIST, [])
+    user_exists = user in rules.get(action, {}).get(USER_LIST, [])
 
-def is_read_places_allowed(who: str) -> bool:
-    rules = read_feature(PLACES)
-
-    if not rules:
-        return False
-
-    return who in rules.get(READ, {}).get(USER_LIST, [])
+    return user_exists
