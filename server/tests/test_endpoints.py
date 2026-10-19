@@ -30,20 +30,20 @@ def admin_headers():
 
 # testing generic endpoints
 
-def test_hello():
+def test_hello(test_client):
     resp = test_client.get(ep.HELLO_EP)
     resp_json = resp.get_json()
     assert ep.HELLO_RESP in resp_json
 
 
-def test_get_states():
+def test_get_states(test_client):
     resp = test_client.get(ep.STATES_EP)
     resp_json = resp.get_json()
     assert ep.STATES_RESP in resp_json
     assert isinstance(resp_json[ep.STATES_RESP], dict)
 
 
-def test_health():
+def test_health(test_client):
     resp = test_client.get(ep.HEALTH_EP)
     assert resp.status_code == OK
     resp_json = resp.get_json()
@@ -59,7 +59,7 @@ FAKE_PLACES = [{'osm_id': 1, 'properties': {'amenity': 'cafe'}}]
 def test_get_places_authorized(mock_get_places, mock_is_permitted, test_client, admin_headers, fake_places):
     resp = test_client.get(
         f'{ep.PLACES_EP}?amenity=cafe&limit=5',
-        headers={admin_headers}
+        headers=admin_headers
     )
 
     assert resp.status_code == OK
@@ -80,7 +80,7 @@ def test_get_places_authorized(mock_get_places, mock_is_permitted, test_client, 
 
 @patch('server.endpoints.sec.is_permitted', return_value=False)
 @patch('server.endpoints.pqry.get_places', return_value=FAKE_PLACES)
-def test_get_places_forbidden(mock_get_places, mock_is_permitted, test_client, admin_headers, fake_places):
+def test_get_places_forbidden(mock_get_places, mock_is_permitted, test_client):
     resp = test_client.get(
         f'{ep.PLACES_EP}?amenity=cafe&limit=5',
         headers={'who': 'not_admin'}
@@ -91,7 +91,7 @@ def test_get_places_forbidden(mock_get_places, mock_is_permitted, test_client, a
     mock_get_places.assert_not_called()
 
     mock_is_permitted.assert_called_once_with(
-        ep.sec.PLACES, ep.sec.READ, 'guest'
+        ep.sec.PLACES, ep.sec.READ, 'not_admin'
     )
 
 
@@ -129,9 +129,8 @@ def test_get_places_by_category(mock_get_places, mock_is_permitted, test_client,
         ep.sec.PLACES, ep.sec.READ, 'admin'
     )
 
-
 @patch('server.endpoints.sec.is_permitted', return_value=True)
-@patch('server.endpoints.pqry.get_places', return_value=FAKE_PLACES)
+@patch('server.endpoints.pqry.get_places', side_effect=ValueError('invalid category'))
 def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client, admin_headers):
     resp = test_client.get(
         f'{ep.PLACES_EP}?category=password',
@@ -140,42 +139,12 @@ def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client
 
     assert resp.status_code == BAD_REQUEST
 
-    mock_get_places.assert_not_called()
-
-    mock_is_permitted.assert_called_once_with(
-        ep.sec.PLACES, ep.sec.READ, 'admin'
+    mock_get_places.assert_called_once_with(
+        category='password',
+        place_type=None,
+        limit=ep.pqry.DEFAULT_LIMIT
     )
-
-
-@patch('server.endpoints.sec.is_permitted', return_value=False)
-@patch('server.endpoints.pqry.get_places', return_value=FAKE_PLACES)
-def test_get_places_forbidden(mock_get_places, mock_is_permitted, test_client, admin_headers):
-    resp = test_client.get(
-        f'{ep.PLACES_EP}?amenity=cafe&limit=5',
-        headers=admin_headers
-    )
-
-    assert resp.status_code == FORBIDDEN
-
-    mock_get_places.assert_not_called()
-
-    mock_is_permitted.assert_called_once_with(
-        ep.sec.PLACES, ep.sec.READ, 'guest'
-    )
-
-
-@patch('server.endpoints.sec.is_permitted', return_value=True)
-@patch('server.endpoints.pqry.get_places', return_value=FAKE_PLACES)
-def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client, admin_headers):
-    resp = test_client.get(
-        f'{ep.PLACES_EP}?category=password',
-        headers=admin_headers
-    )
-
-    assert resp.status_code == BAD_REQUEST
-
-    mock_get_places.assert_not_called()
-
+    
     mock_is_permitted.assert_called_once_with(
         ep.sec.PLACES, ep.sec.READ, 'admin'
     )
@@ -184,11 +153,11 @@ def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client
 
 @patch('server.endpoints.sec.is_permitted', return_value=True)
 @patch('server.endpoints.pqry.get_places', side_effect=ConnectionError('db down'))
-def test_get_places_db_error(mock_get_places, mock_is_permitted, test_client):
+def test_get_places_db_error(mock_get_places, mock_is_permitted, test_client, admin_headers):
     with pytest.raises(ConnectionError):
         test_client.get(
             f'{ep.PLACES_EP}?amenity=cafe&limit=5',
-            headers={'who': 'admin'}
+            headers=admin_headers
         )
 
 # skips
