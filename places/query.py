@@ -1,9 +1,8 @@
 """
 Query module for NYC places loaded by data/places/load.py.
 """
-from data.db_connect import connect_db
+from data.db_connect import get_db
 
-PLACES_DB = 'nyc_map'
 PLACES_COLLECT = 'places'
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 500
@@ -28,5 +27,5 @@ def get_places(category=None, place_type=None, limit=DEFAULT_LIMIT):
         field = f'properties.{category}'
         filt[field] = place_type if place_type else {'$exists': True}
     limit = max(1, min(limit, MAX_LIMIT))
-    collection = connect_db()[PLACES_DB][PLACES_COLLECT]
+    collection = get_db()[PLACES_COLLECT]
     return list(collection.find(filt, {'_id': 0}).limit(limit))
