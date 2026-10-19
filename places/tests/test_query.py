@@ -5,18 +5,18 @@ import places.query as qry
 
 def fake_db(docs):
     """
-    Build a fake Mongo client whose find().limit() returns docs.
+    Build a fake Mongo database whose find().limit() returns docs.
     """
     collection = MagicMock()
     collection.find.return_value.limit.return_value = docs
-    client = MagicMock()
-    client.__getitem__.return_value.__getitem__.return_value = collection
-    return client, collection
+    database = MagicMock()
+    database.__getitem__.return_value = collection
+    return database, collection
 
 
 def test_get_places_filters_by_amenity():
-    client, collection = fake_db([{'osm_id': 1}])
-    with patch('places.query.connect_db', return_value=client):
+    database, collection = fake_db([{'osm_id': 1}])
+    with patch('places.query.get_db', return_value=database):
         result = qry.get_places(category='amenity', place_type='cafe',
                                 limit=10)
     assert result == [{'osm_id': 1}]
@@ -26,30 +26,30 @@ def test_get_places_filters_by_amenity():
 
 
 def test_get_places_no_filter():
-    client, collection = fake_db([])
-    with patch('places.query.connect_db', return_value=client):
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
         qry.get_places()
     collection.find.assert_called_with({}, {'_id': 0})
 
 
 def test_get_places_caps_limit():
-    client, collection = fake_db([])
-    with patch('places.query.connect_db', return_value=client):
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
         qry.get_places(limit=99999)
     collection.find.return_value.limit.assert_called_with(qry.MAX_LIMIT)
 
 
 def test_get_places_category_only():
-    client, collection = fake_db([])
-    with patch('places.query.connect_db', return_value=client):
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
         qry.get_places(category='tourism')
     collection.find.assert_called_with(
         {'properties.tourism': {'$exists': True}}, {'_id': 0})
 
 
 def test_get_places_leisure_park():
-    client, collection = fake_db([])
-    with patch('places.query.connect_db', return_value=client):
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
         qry.get_places(category='leisure', place_type='park')
     collection.find.assert_called_with(
         {'properties.leisure': 'park'}, {'_id': 0})
@@ -63,3 +63,17 @@ def test_get_places_bad_category():
 def test_get_places_type_without_category():
     with pytest.raises(ValueError):
         qry.get_places(place_type='park')
+
+
+def test_get_places_uses_configured_database(monkeypatch):
+    from data import db_connect as dbc
+
+    monkeypatch.setenv('MONGO_DB', 'test_places')
+    database, collection = fake_db([{'osm_id': 1}])
+    client = MagicMock()
+    client.__getitem__.return_value = database
+    monkeypatch.setattr(dbc, 'client', client)
+
+    assert qry.get_places() == [{'osm_id': 1}]
+    client.__getitem__.assert_called_once_with('test_places')
+    database.__getitem__.assert_called_once_with('places')
