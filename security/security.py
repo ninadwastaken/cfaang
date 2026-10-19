@@ -1,3 +1,5 @@
+# Note, this is mainly for authorization, authentication is still a work in progress!
+
 from functools import wraps
 
 # import data.db_connect as dbc
@@ -59,13 +61,14 @@ LOGIN = 'login'
 
 # Features:
 PEOPLE = 'people'
+PLACES = 'places'
 
 security_recs = None
 # These will come from the DB soon:
 temp_recs = {
-    PEOPLE: {
-        CREATE: {
-            USER_LIST: ['ejc369@nyu.edu'],
+    PLACES: {
+        READ: {
+            USER_LIST: ['admin'],
             CHECKS: {
                 LOGIN: True,
             },
@@ -100,3 +103,15 @@ def read_feature(feature_name: str) -> dict:
         return security_recs[feature_name]
     else:
         return None
+
+
+@needs_recs
+def is_permitted(feature_name: str, action: str, user: str, **kwargs) -> bool:
+    rules = read_feature(feature_name)
+
+    if not rules:
+        return False
+
+    user_exists = user in rules.get(action, {}).get(USER_LIST, [])
+
+    return user_exists

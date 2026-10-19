@@ -12,6 +12,7 @@ import werkzeug.exceptions as wz
 
 import states.query as sqry
 import places.query as pqry
+import security.security as sec
 
 app = Flask(__name__)
 CORS(app)
@@ -68,6 +69,7 @@ class States(Resource):
         """
         The get method will return a list of all states in the database.
         """
+        
         states = sqry.get_states()
         if states is None:
             raise wz.ServiceUnavailable('Database may be down.')
@@ -92,8 +94,14 @@ class Places(Resource):
         """
         Return NYC places, like /places?category=leisure&type=park.
         """
+
+        # check if user is authorized to read places
+        if not sec.is_permitted(sec.PLACES, sec.READ, request.headers.get('who', '')):
+            raise wz.Forbidden('Not authorized')
+        
         category = request.args.get('category')
         place_type = request.args.get('type')
+
         amenity = request.args.get('amenity')
         if amenity:
             category, place_type = 'amenity', amenity

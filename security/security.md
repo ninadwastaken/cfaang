@@ -18,3 +18,7 @@
 - Security data should be in our DB.
 - First cut: let's use CRUD.
 - Having a dictionary of bools to specify checks needed will permit easily adding more later.
+
+## Authorizing
+
+When testing the `/states` and `/places` endpoints, add a `who: admin` header
