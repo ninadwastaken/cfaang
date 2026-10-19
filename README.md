@@ -39,6 +39,13 @@ To create the env for a new developer, run `make dev_env`.
 
 
 # Docker Development
+
+The places importer and database helpers use `nyc_map` by default. Set the
+`MONGO_DB` environment variable in the Python process to select another database.
+For Docker, add `MONGO_DB` to the API service's environment if you need an override.
+Changing this setting selects a database; it does not move existing records.
+Helpers connect automatically and still accept an explicit `db=` override.
+
 With Docker running, build and start the API and MongoDB:
 
 ```sh
