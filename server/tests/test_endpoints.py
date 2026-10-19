@@ -13,8 +13,6 @@ import pytest
 
 import server.endpoints as ep
 
-TEST_CLIENT = ep.app.test_client()
-
 # fixtures
 
 @pytest.fixture
@@ -50,7 +48,6 @@ def test_health():
     assert resp.status_code == OK
     resp_json = resp.get_json()
     assert resp_json[ep.HEALTH_RESP] == 'ok'
-
 
 # testing places endpoint
 
@@ -135,7 +132,7 @@ def test_get_places_by_category(mock_get_places, mock_is_permitted, test_client,
 
 @patch('server.endpoints.sec.is_permitted', return_value=True)
 @patch('server.endpoints.pqry.get_places', return_value=FAKE_PLACES)
-def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client, , admin_headers):
+def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client, admin_headers):
     resp = test_client.get(
         f'{ep.PLACES_EP}?category=password',
         headers=admin_headers
@@ -152,7 +149,7 @@ def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client
 
 @patch('server.endpoints.sec.is_permitted', return_value=False)
 @patch('server.endpoints.pqry.get_places', return_value=FAKE_PLACES)
-def test_get_places_forbidden(mock_get_places, mock_is_permitted, test_client, , admin_headers):
+def test_get_places_forbidden(mock_get_places, mock_is_permitted, test_client, admin_headers):
     resp = test_client.get(
         f'{ep.PLACES_EP}?amenity=cafe&limit=5',
         headers=admin_headers
@@ -182,3 +179,21 @@ def test_get_places_bad_category(mock_get_places, mock_is_permitted, test_client
     mock_is_permitted.assert_called_once_with(
         ep.sec.PLACES, ep.sec.READ, 'admin'
     )
+
+# raises
+
+@patch('server.endpoints.sec.is_permitted', return_value=True)
+@patch('server.endpoints.pqry.get_places', side_effect=ConnectionError('db down'))
+def test_get_places_db_error(mock_get_places, mock_is_permitted, test_client):
+    with pytest.raises(ConnectionError):
+        test_client.get(
+            f'{ep.PLACES_EP}?amenity=cafe&limit=5',
+            headers={'who': 'admin'}
+        )
+
+# skips
+
+@pytest.mark.skip(reason='TODO: endpoint returns 404 when no places match')
+def test_get_places_not_found(test_client):
+    # not yet implemented, will need to add NOT FOUND status to places endpoints
+    pass
