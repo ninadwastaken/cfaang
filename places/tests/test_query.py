@@ -77,3 +77,43 @@ def test_get_places_uses_configured_database(monkeypatch):
     assert qry.get_places() == [{'osm_id': 1}]
     client.__getitem__.assert_called_once_with('test_places')
     database.__getitem__.assert_called_once_with('places')
+
+
+def test_get_places_near():
+    database, collection = fake_db([{'osm_id': 1}])
+    with patch('places.query.get_db', return_value=database):
+        result = qry.get_places_near(40.73, -73.99, radius=500)
+    assert result == [{'osm_id': 1}]
+    filt = collection.find.call_args[0][0]
+    center, radians = filt['geometry']['$geoWithin']['$centerSphere']
+    assert center == [-73.99, 40.73]
+    assert radians == 500 / qry.EARTH_RADIUS_M
+
+
+def test_get_places_near_with_category():
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
+        qry.get_places_near(40.73, -73.99, category='amenity',
+                            place_type='cafe')
+    filt = collection.find.call_args[0][0]
+    assert filt['properties.amenity'] == 'cafe'
+    assert 'geometry' in filt
+
+
+def test_get_places_near_caps_radius():
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
+        qry.get_places_near(40.73, -73.99, radius=999999)
+    filt = collection.find.call_args[0][0]
+    radians = filt['geometry']['$geoWithin']['$centerSphere'][1]
+    assert radians == qry.MAX_RADIUS_M / qry.EARTH_RADIUS_M
+
+
+def test_get_places_near_bad_coords():
+    with pytest.raises(ValueError):
+        qry.get_places_near(200, -73.99)
+
+
+def test_get_places_near_bad_radius():
+    with pytest.raises(ValueError):
+        qry.get_places_near(40.73, -73.99, radius=0)
