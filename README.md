@@ -42,6 +42,18 @@ connection fails. This checks API availability; it does not check MongoDB.
 The Docker setup publishes the API on loopback only; use `local.sh` as above
 for physical-phone development. Use an HTTPS API URL for deployed builds.
 
+### Mobile meeting preview
+
+The mobile app has a two-location form and category-filtered sample results.
+Locations are labels only: geocoding and `/meet` integration are pending.
+All places and distances in the preview are fictional fixtures in
+`mobile/src/data/demo.ts`. The preview works even when Flask is offline;
+the home screen reports the API connection separately.
+
+Navigation uses Expo Router, with screens in `mobile/src/app/`. After installing
+dependencies or switching from the original home screen, restart Metro with
+`cd mobile && npm start -- --clear`.
+
 ## Tests
 
 make all_tests
