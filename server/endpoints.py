@@ -128,6 +128,8 @@ class Meet(Resource):
                     'natural, shop',
         'type': 'Type within the category, like cafe or park',
         'limit': 'Max results to return (default 50, max 500)',
+        'sort': 'fair (shortest longer trip first, default) or closest '
+                '(closest to the midpoint first)',
     })
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
@@ -156,10 +158,12 @@ class Meet(Resource):
         try:
             result = meet.find_spots(
                 (lat1, lon1), (lat2, lon2), radius=radius,
-                category=category, place_type=place_type, limit=limit)
+                category=category, place_type=place_type, limit=limit,
+                sort=request.args.get('sort', 'fair'))
         except ValueError as err:
             raise wz.BadRequest(str(err))
         return {'midpoint': result['midpoint'],
+                'radius': result['radius'],
                 MEET_RESP: result['spots'],
                 'count': len(result['spots'])}
 

@@ -68,7 +68,7 @@ def test_get_places_bad_category():
     assert resp.status_code == BAD_REQUEST
 
 
-FAKE_MEET = {'midpoint': {'lat': 40.7, 'lon': -73.98},
+FAKE_MEET = {'midpoint': {'lat': 40.7, 'lon': -73.98}, 'radius': 1000,
              'spots': [{'name': 'Cafe', 'dist_1': 900, 'dist_2': 1100}]}
 
 
@@ -84,7 +84,8 @@ def test_meet(mock_find):
     assert resp_json['count'] == 1
     mock_find.assert_called_with((40.73, -73.99), (40.68, -73.97),
                                  radius=1000.0, category='amenity',
-                                 place_type='cafe', limit=50)
+                                 place_type='cafe', limit=50,
+                                 sort='fair')
 
 
 def test_meet_missing_person():
@@ -97,3 +98,19 @@ def test_meet_bad_number():
     resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
         'lat1': 'abc', 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97})
     assert resp.status_code == BAD_REQUEST
+
+
+def test_meet_bad_sort():
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'sort': 'random'})
+    assert resp.status_code == BAD_REQUEST
+
+
+@patch('places.query.get_db')
+def test_meet_nan_radius(mock_db):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'radius': 'nan'})
+    assert resp.status_code == BAD_REQUEST
+    mock_db.assert_not_called()

@@ -52,7 +52,8 @@ def get_places_near(lat, lon, radius=DEFAULT_RADIUS_M, category=None,
     """
     if not -90 <= lat <= 90 or not -180 <= lon <= 180:
         raise ValueError('lat or lon out of range')
-    if radius <= 0:
+    # Written this way so NaN fails too.
+    if not radius > 0:
         raise ValueError('radius must be positive')
     radius = min(radius, MAX_RADIUS_M)
     filt = build_filter(category, place_type)
