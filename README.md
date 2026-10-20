@@ -25,6 +25,23 @@ A Flask REST API server.
 Then go to http://127.0.0.1:8000/hello. You should see {"hello": "world"}.
 The Swagger docs for all endpoints are at http://127.0.0.1:8000/.
 
+## Mobile app connection
+
+The app checks Flask's `/health` endpoint on launch and offers a retry if the
+connection fails. This checks API availability; it does not check MongoDB.
+
+1. Run `./local.sh` with your Python environment activated.
+2. Set `EXPO_PUBLIC_API_URL` in `mobile/.env.local` (see `mobile/.env.example`).
+   Use `http://127.0.0.1:8000` for the iOS simulator or a browser on your computer,
+   or `http://10.0.2.2:8000` for the Android emulator.
+3. For a physical phone, use your computer's LAN IP, such as
+   `http://192.168.1.20:8000`, and run `FLASK_RUN_HOST=0.0.0.0 ./local.sh` on a
+   trusted local network. Connect the phone and computer to the same network.
+4. Run `cd mobile` and `npm start`. Reload the app after changing the API URL.
+
+The Docker setup publishes the API on loopback only; use `local.sh` as above
+for physical-phone development. Use an HTTPS API URL for deployed builds.
+
 ## Tests
 
 make all_tests
