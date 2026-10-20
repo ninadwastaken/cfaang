@@ -117,3 +117,8 @@ def test_get_places_near_bad_coords():
 def test_get_places_near_bad_radius():
     with pytest.raises(ValueError):
         qry.get_places_near(40.73, -73.99, radius=0)
+
+
+def test_get_places_near_nan_radius():
+    with pytest.raises(ValueError):
+        qry.get_places_near(40.73, -73.99, radius=float('nan'))
