@@ -1,9 +1,28 @@
-"""Database selection tests; no running MongoDB is needed."""
+"""Database selection and availability tests using a mocked MongoDB client."""
 from unittest.mock import MagicMock
 
 import pytest
 
 from data import db_connect as dbc
+
+
+def test_is_db_up_pings_mongo(mongo):
+    mongo.return_value.admin.command.return_value = {'ok': 1}
+
+    assert dbc.is_db_up() is True
+    mongo.return_value.admin.command.assert_called_once_with('ping')
+
+
+@pytest.mark.parametrize('error', [
+    dbc.pm.errors.ServerSelectionTimeoutError('MongoDB is unavailable'),
+    dbc.pm.errors.ConnectionFailure('Connection lost'),
+    dbc.pm.errors.OperationFailure('Ping failed'),
+])
+def test_is_db_up_returns_false_when_ping_fails(mongo, error):
+    mongo.return_value.admin.command.side_effect = error
+
+    assert dbc.is_db_up() is False
+    mongo.return_value.admin.command.assert_called_once_with('ping')
 
 
 @pytest.fixture
