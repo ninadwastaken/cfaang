@@ -6,6 +6,7 @@ services:
     environment:
       CLOUD_MONGO: "0"
       MONGO_URI: mongodb://mongo:27017/
+      MARIADB_URL: "mysql+pymysql://admin:admin@mariadb:3306/cfaang"
       AUTH_BYPASS: "${AUTH_BYPASS:-0}" # use inline env vars and set this to 1 to disable security
     depends_on:
       mongo:

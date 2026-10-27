@@ -2,11 +2,16 @@
 This is the file containing all of the endpoints for our flask app.
 The endpoint called `endpoints` will return all available endpoints.
 """
+import os # used to get environment variables
+
 from http import HTTPStatus
 
 from flask import Flask, request
 from flask_restx import Resource, Api  # , fields  # Namespace
 from flask_cors import CORS
+
+from sql_db import sql_db, migrate
+import sql_db.models as models
 
 import werkzeug.exceptions as wz
 
@@ -16,6 +21,13 @@ import security.security as sec
 import places.meet as meet
 
 app = Flask(__name__)
+
+# sql database init
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["MARIADB_URL"]
+
+sql_db.init_app(app)
+migrate.init_app(app, sql_db)
+
 CORS(app)
 api = Api(app)
 
