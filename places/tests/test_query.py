@@ -90,6 +90,14 @@ def test_get_places_near():
     assert near['$maxDistance'] == 500
 
 
+def test_get_places_near_skips_unnamed():
+    database, collection = fake_db([])
+    with patch('places.query.get_db', return_value=database):
+        qry.get_places_near(40.73, -73.99)
+    filt = collection.find.call_args[0][0]
+    assert filt['properties.name'] == {'$exists': True, '$ne': ''}
+
+
 def test_get_places_near_with_category():
     database, collection = fake_db([])
     with patch('places.query.get_db', return_value=database):

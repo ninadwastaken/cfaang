@@ -9,6 +9,7 @@ EARTH_RADIUS_M = 6371000
 SORTS = ('fair', 'closest')
 MIN_SPOTS = 5
 WIDEN_FACTOR = 2
+SAME_PLACE_M = 200
 
 
 def distance_m(point_a, point_b):
@@ -63,6 +64,54 @@ def search_widening(mid, radius, category, place_type, limit):
         radius = min(radius * WIDEN_FACTOR, pqry.MAX_RADIUS_M)
 
 
+def street_address(spot):
+    """
+    Return (house number, street) from the OSM tags, or None if
+    either is missing.
+    """
+    props = spot['properties']
+    number = props.get('addr:housenumber')
+    street = props.get('addr:street')
+    if not number or not street:
+        return None
+    return number.strip().lower(), street.strip().lower()
+
+
+def same_place(spot_a, spot_b):
+    """
+    True if two spots look like one place listed twice: the same name,
+    within SAME_PLACE_M meters, and one is a point while the other is
+    an area. Two points with the same name, like neighboring branches
+    of a chain, are separate places. So are spots with different
+    street addresses.
+    """
+    def name(spot):
+        return (spot['name'] or '').strip().lower()
+
+    if name(spot_a) != name(spot_b):
+        return False
+    if spot_a['osm_type'] == spot_b['osm_type']:
+        return False
+    addr_a, addr_b = street_address(spot_a), street_address(spot_b)
+    if addr_a and addr_b and addr_a != addr_b:
+        return False
+    return distance_m((spot_a['lat'], spot_a['lon']),
+                      (spot_b['lat'], spot_b['lon'])) < SAME_PLACE_M
+
+
+def drop_duplicates(spots):
+    """
+    OSM can list one place twice, like a park as a point and an area.
+    Keep the first spot and drop any later one that same_place says
+    is the same.
+    """
+    kept = []
+    for spot in spots:
+        if not any(same_place(spot, k) for k in kept):
+            kept.append(spot)
+    return kept
+
+
 def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
                category=None, place_type=None, limit=pqry.DEFAULT_LIMIT,
                sort='fair'):
@@ -85,6 +134,7 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
         point = place_point(place)
         spot = {
             'name': place.get('properties', {}).get('name'),
+            'osm_type': place.get('osm_type'),
             'lat': point[0],
             'lon': point[1],
             'dist_1': round(distance_m(person_1, point)),
@@ -101,5 +151,6 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
         spots.sort(key=lambda s: (max(s['dist_1'], s['dist_2']), s['gap']))
     else:
         spots.sort(key=lambda s: s['dist_mid'])
+    spots = drop_duplicates(spots)
     return {'midpoint': {'lat': mid[0], 'lon': mid[1]},
             'radius': radius_used, 'spots': spots}

@@ -56,6 +56,8 @@ def get_places_near(lat, lon, radius=DEFAULT_RADIUS_M, category=None,
         raise ValueError('radius must be positive')
     radius = min(radius, MAX_RADIUS_M)
     filt = build_filter(category, place_type)
+    # Skip places with no name. Nobody can meet at "Unnamed park".
+    filt['properties.name'] = {'$exists': True, '$ne': ''}
     # GeoJSON points are stored as [lon, lat].
     # $nearSphere returns closest first, so limit keeps the nearest places.
     filt['geometry'] = {
