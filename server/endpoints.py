@@ -13,6 +13,7 @@ import werkzeug.exceptions as wz
 import states.query as sqry
 import places.query as pqry
 import security.security as sec
+import places.meet as meet
 
 app = Flask(__name__)
 CORS(app)
@@ -27,6 +28,8 @@ STATES_RESP = 'States:'
 MESSAGE = 'Message'
 PLACES_EP = '/places'
 PLACES_RESP = 'Places'
+MEET_EP = '/meet'
+MEET_RESP = 'Spots'
 HEALTH_EP = '/health'
 HEALTH_RESP = 'status'
 
@@ -79,30 +82,97 @@ class States(Resource):
 @api.route(PLACES_EP)
 class Places(Resource):
     """
-    Get NYC places, optionally filtered by amenity type.
+    Get NYC places, optionally filtered by category and type.
     """
     @api.doc(params={
-        'amenity': 'Amenity type, like cafe, library, or bank',
+        'category': 'One of: amenity, leisure, tourism, historic, '
+                    'natural, shop',
+        'type': 'Type within the category, like park or museum',
+        'amenity': 'Shortcut for category=amenity&type=<value>',
         'limit': 'Max results to return (default 50, max 500)',
     })
     @api.response(HTTPStatus.OK.value, 'Success')
-    @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad limit value')
+    @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
     def get(self):
         """
-        Return NYC places, like /places?amenity=cafe&limit=10.
+        Return NYC places, like /places?category=leisure&type=park.
         """
 
         # check if user is authorized to read places
         if not sec.is_permitted(sec.PLACES, sec.READ, request.headers.get('who', '')):
             raise wz.Forbidden('Not authorized')
 
+        category = request.args.get('category')
+        place_type = request.args.get('type')
         amenity = request.args.get('amenity')
+        if amenity:
+            category, place_type = 'amenity', amenity
         try:
             limit = int(request.args.get('limit', pqry.DEFAULT_LIMIT))
         except ValueError:
             raise wz.BadRequest('limit must be a number.')
-        places = pqry.get_places(amenity=amenity, limit=limit)
+        try:
+            places = pqry.get_places(category=category,
+                                     place_type=place_type, limit=limit)
+        except ValueError as err:
+            raise wz.BadRequest(str(err))
         return {PLACES_RESP: places, 'count': len(places)}
+
+
+@api.route(MEET_EP)
+class Meet(Resource):
+    """
+    Find places to meet between two people.
+    """
+    @api.doc(params={
+        'lat1': 'Latitude of person 1 (required)',
+        'lon1': 'Longitude of person 1 (required)',
+        'lat2': 'Latitude of person 2 (required)',
+        'lon2': 'Longitude of person 2 (required)',
+        'radius': 'Search radius around the midpoint in meters '
+                  '(default 1000, max 10000)',
+        'category': 'One of: amenity, leisure, tourism, historic, '
+                    'natural, shop',
+        'type': 'Type within the category, like cafe or park',
+        'limit': 'Max results to return (default 50, max 500)',
+        'sort': 'fair (shortest longer trip first, default) or closest '
+                '(closest to the midpoint first)',
+    })
+    @api.response(HTTPStatus.OK.value, 'Success')
+    @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
+    def get(self):
+        """
+        Return spots near the midpoint of two people, like
+        /meet?lat1=40.73&lon1=-73.99&lat2=40.68&lon2=-73.97&type=cafe.
+        """
+        try:
+            lat1 = float(request.args['lat1'])
+            lon1 = float(request.args['lon1'])
+            lat2 = float(request.args['lat2'])
+            lon2 = float(request.args['lon2'])
+            radius = float(request.args.get('radius',
+                                            pqry.DEFAULT_RADIUS_M))
+            limit = int(request.args.get('limit', pqry.DEFAULT_LIMIT))
+        except KeyError:
+            raise wz.BadRequest('lat1, lon1, lat2, and lon2 are required.')
+        except ValueError:
+            raise wz.BadRequest('Coordinates, radius, and limit must be '
+                                'numbers.')
+        category = request.args.get('category')
+        place_type = request.args.get('type')
+        if place_type and not category:
+            category = 'amenity'
+        try:
+            result = meet.find_spots(
+                (lat1, lon1), (lat2, lon2), radius=radius,
+                category=category, place_type=place_type, limit=limit,
+                sort=request.args.get('sort', 'fair'))
+        except ValueError as err:
+            raise wz.BadRequest(str(err))
+        return {'midpoint': result['midpoint'],
+                'radius': result['radius'],
+                MEET_RESP: result['spots'],
+                'count': len(result['spots'])}
 
 
 @api.route(HEALTH_EP)

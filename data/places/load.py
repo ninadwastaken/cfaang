@@ -1,5 +1,5 @@
 import requests
-from data.db_connect import connect_db
+from data.db_connect import get_db
 import os 
 import time
 from uuid import uuid4
@@ -101,6 +101,7 @@ def replace_places(db, documents):
                        if key not in ('key', 'v', 'ns')}
             staging.create_index(index['key'], name=name, **options)
         result = staging.insert_many(documents)
+        staging.create_index([('geometry', '2dsphere')])
         staging.rename('places', dropTarget=True)
         return result
     finally:
@@ -143,8 +144,7 @@ if __name__ == '__main__' and os.environ.get('CLOUD_MONGO', LOCAL) == LOCAL:
 
     #Ingest into your local MongoDB
     if documents:
-        client = connect_db()
-        db = client["nyc_map"]
+        db = get_db()
         result = replace_places(db, documents)
         print(f"Successfully imported {len(result.inserted_ids)} NYC places into local MongoDB!")
     else:

@@ -52,3 +52,26 @@ jobs:
       #  run: ./deploy.sh
       #  env:
       #    DEMO_PA_PWD: ${{secrets.DEMO_PA_PWD}}
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm ci
+
+      - name: Type-check mobile app
+        run: npm run typecheck
