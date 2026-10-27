@@ -13,7 +13,7 @@ export default function Home() {
   const [person2, setPerson2] = useState('grand-central');
   const [category, setCategory] = useState<Category>('Cafés');
   const [error, setError] = useState('');
-  function preview() {
+  function search() {
     if (!findLandmark(person1) || !findLandmark(person2)) {
       setError('Choose a starting landmark for both people.');
       return;
@@ -29,8 +29,8 @@ export default function Home() {
           <Text style={ui.title}>A little closer{ '\n' }to both of you.</Text>
           <Text style={ui.body}>Two starting points. One place to catch up.</Text>
           <View style={ui.notice}>
-            <Text style={ui.label}>Sample preview</Text>
-            <Text style={ui.noticeText}>Choose from NYC landmarks with approximate coordinates. Address search is coming later. Results are still samples in this preview.</Text>
+            <Text style={ui.label}>Start with a landmark</Text>
+            <Text style={ui.noticeText}>Choose from NYC landmarks with approximate coordinates. Address search is coming later. We’ll find real places near the midpoint of your choices.</Text>
           </View>
           <View style={ui.card}>
             <LandmarkSelector label="Your starting location" value={person1} onChange={setPerson1} />
@@ -43,7 +43,7 @@ export default function Home() {
             </Pressable>)}
           </View>
           {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
-          <Pressable accessibilityRole="button" style={ui.button} onPress={preview}><Text style={ui.buttonText}>Preview meeting spots →</Text></Pressable>
+          <Pressable accessibilityRole="button" style={ui.button} onPress={search}><Text style={ui.buttonText}>Find meeting spots →</Text></Pressable>
           <ApiStatus />
         </ScrollView>
 
