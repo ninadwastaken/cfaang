@@ -6,8 +6,11 @@ services:
     environment:
       CLOUD_MONGO: "0"
       MONGO_URI: mongodb://mongo:27017/
+      AUTH_BYPASS: "${AUTH_BYPASS:-0}" # use inline env vars and set this to 1 to disable security
     depends_on:
       mongo:
+        condition: service_healthy
+      mariadb:
         condition: service_healthy
 
   mongo:
@@ -21,5 +24,22 @@ services:
       retries: 12
       start_period: 10s
 
+  mariadb:
+    image: mariadb
+    environment:
+      MARIADB_DATABASE: "cfaang"
+      MARIADB_USER: "admin"
+      MARIADB_PASSWORD: "admin"
+      MARIADB_ROOT_PASSWORD: "admin"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
 volumes:
   mongo_data:
+  mariadb_data:

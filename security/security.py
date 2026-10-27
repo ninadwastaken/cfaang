@@ -1,6 +1,11 @@
 # Note, this is mainly for authorization, authentication is still a work in progress!
 
+import os
 from functools import wraps
+
+# set to 0 to enforce authorization, 1 to bypass authorization
+# ALWAYS SET TO 0 IN PRODUCTION!
+AUTH_BYPASS = os.getenv("AUTH_BYPASS") == "1"
 
 # import data.db_connect as dbc
 
@@ -50,7 +55,7 @@ Our record format to meet our requirements (see security.md) will be:
 }
 """
 
-COLLECT_NAME = 'security'
+# COLLECT_NAME = 'security'
 CREATE = 'create'
 READ = 'read'
 UPDATE = 'update'
@@ -60,13 +65,30 @@ CHECKS = 'checks'
 LOGIN = 'login'
 
 # Features:
-PEOPLE = 'people'
 PLACES = 'places'
+MEET = 'meet'
+ENDPOINTS = 'endpoints'
 
 security_recs = None
 # These will come from the DB soon:
 temp_recs = {
     PLACES: {
+        READ: {
+            USER_LIST: ['admin'],
+            CHECKS: {
+                LOGIN: True,
+            },
+        },
+    },
+    MEET: {
+        READ: {
+            USER_LIST: ['admin'],
+            CHECKS: {
+                LOGIN: True,
+            },
+        },
+    },
+    ENDPOINTS: {
         READ: {
             USER_LIST: ['admin'],
             CHECKS: {
@@ -107,6 +129,9 @@ def read_feature(feature_name: str) -> dict:
 
 @needs_recs
 def is_permitted(feature_name: str, action: str, user: str, **kwargs) -> bool:
+    if AUTH_BYPASS:
+        return True
+
     rules = read_feature(feature_name)
 
     if not rules:

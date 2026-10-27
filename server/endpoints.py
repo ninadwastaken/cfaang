@@ -33,18 +33,18 @@ MEET_RESP = 'Spots'
 HEALTH_EP = '/health'
 HEALTH_RESP = 'status'
 
-
-@api.route(HELLO_EP)
-class HelloWorld(Resource):
-    """
-    The purpose of the HelloWorld class is to have a simple test to see if the
-    app is working at all.
-    """
-    def get(self):
-        """
-        A trivial endpoint to see if the server is running.
-        """
-        return {HELLO_RESP: 'world'}
+# already have a health endpoint, this is redundant - Will
+# @api.route(HELLO_EP)
+# class HelloWorld(Resource):
+#     """
+#     The purpose of the HelloWorld class is to have a simple test to see if the
+#     app is working at all.
+#     """
+#     def get(self):
+#         """
+#         A trivial endpoint to see if the server is running.
+#         """
+#         return {HELLO_RESP: 'world'}
 
 
 @api.route(ENDPOINT_EP)
@@ -57,26 +57,31 @@ class Endpoints(Resource):
         """
         The `get()` method will return a sorted list of available endpoints.
         """
+
+        if not sec.is_permitted(sec.ENDPOINTS, sec.READ, request.headers.get('who', '')):
+            raise wz.Forbidden('Not authorized')
+        
         endpoints = sorted(rule.rule for rule in api.app.url_map.iter_rules())
         return {"Available endpoints": endpoints}
 
 
-@api.route(STATES_EP)
-class States(Resource):
-    """
-    The get method will return a list of all states in the database.
-    """
-    @api.response(HTTPStatus.OK.value, 'Success')
-    @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Service Unavailable')
-    def get(self):
-        """
-        The get method will return a list of all states in the database.
-        """
+# This looks like it's unused - Will
+# @api.route(STATES_EP)
+# class States(Resource):
+#     """
+#     The get method will return a list of all states in the database.
+#     """
+#     @api.response(HTTPStatus.OK.value, 'Success')
+#     @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Service Unavailable')
+#     def get(self):
+#         """
+#         The get method will return a list of all states in the database.
+#         """
         
-        states = sqry.get_states()
-        if states is None:
-            raise wz.ServiceUnavailable('Database may be down.')
-        return {STATES_RESP: states}
+#         states = sqry.get_states()
+#         if states is None:
+#             raise wz.ServiceUnavailable('Database may be down.')
+#         return {STATES_RESP: states}
 
 
 @api.route(PLACES_EP)
@@ -145,6 +150,10 @@ class Meet(Resource):
         Return spots near the midpoint of two people, like
         /meet?lat1=40.73&lon1=-73.99&lat2=40.68&lon2=-73.97&type=cafe.
         """
+        # check if user is authorized to read places
+        if not sec.is_permitted(sec.MEET, sec.READ, request.headers.get('who', '')):
+            raise wz.Forbidden('Not authorized')
+
         try:
             lat1 = float(request.args['lat1'])
             lon1 = float(request.args['lon1'])
