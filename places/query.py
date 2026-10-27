@@ -10,7 +10,6 @@ MAX_LIMIT = 500
 # OSM tag keys the loader pulls places from.
 CATEGORIES = ('amenity', 'leisure', 'tourism', 'historic', 'natural', 'shop')
 
-EARTH_RADIUS_M = 6378100
 DEFAULT_RADIUS_M = 1000
 MAX_RADIUS_M = 10000
 
@@ -58,10 +57,11 @@ def get_places_near(lat, lon, radius=DEFAULT_RADIUS_M, category=None,
     radius = min(radius, MAX_RADIUS_M)
     filt = build_filter(category, place_type)
     # GeoJSON points are stored as [lon, lat].
-    # $centerSphere wants the radius in radians.
+    # $nearSphere returns closest first, so limit keeps the nearest places.
     filt['geometry'] = {
-        '$geoWithin': {
-            '$centerSphere': [[lon, lat], radius / EARTH_RADIUS_M]
+        '$nearSphere': {
+            '$geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+            '$maxDistance': radius,
         }
     }
     limit = max(1, min(limit, MAX_LIMIT))

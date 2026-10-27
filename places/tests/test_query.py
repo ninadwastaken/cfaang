@@ -85,9 +85,9 @@ def test_get_places_near():
         result = qry.get_places_near(40.73, -73.99, radius=500)
     assert result == [{'osm_id': 1}]
     filt = collection.find.call_args[0][0]
-    center, radians = filt['geometry']['$geoWithin']['$centerSphere']
-    assert center == [-73.99, 40.73]
-    assert radians == 500 / qry.EARTH_RADIUS_M
+    near = filt['geometry']['$nearSphere']
+    assert near['$geometry']['coordinates'] == [-73.99, 40.73]
+    assert near['$maxDistance'] == 500
 
 
 def test_get_places_near_with_category():
@@ -105,8 +105,8 @@ def test_get_places_near_caps_radius():
     with patch('places.query.get_db', return_value=database):
         qry.get_places_near(40.73, -73.99, radius=999999)
     filt = collection.find.call_args[0][0]
-    radians = filt['geometry']['$geoWithin']['$centerSphere'][1]
-    assert radians == qry.MAX_RADIUS_M / qry.EARTH_RADIUS_M
+    near = filt['geometry']['$nearSphere']
+    assert near['$maxDistance'] == qry.MAX_RADIUS_M
 
 
 def test_get_places_near_bad_coords():
