@@ -101,6 +101,7 @@ def replace_places(db, documents):
                        if key not in ('key', 'v', 'ns')}
             staging.create_index(index['key'], name=name, **options)
         result = staging.insert_many(documents)
+        staging.create_index([('geometry', '2dsphere')])
         staging.rename('places', dropTarget=True)
         return result
     finally:

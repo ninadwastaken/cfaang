@@ -55,7 +55,12 @@ def is_db_up():
     """
     Returns True if the DB is up and running.
     """
-    return True
+    try:
+        with pm.timeout(5):
+            connect_db().admin.command('ping')
+        return True
+    except pm.errors.PyMongoError:
+        return False
 
 
 def convert_mongo_id(doc: dict):
