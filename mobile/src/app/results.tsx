@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { categories, getMeetingSpots, MeetingResponse } from '../../api';
 import { colors, ui } from '../components/ui';
 import { findLandmark } from '../data/landmarks';
+import DirectionsButton from '../components/DirectionsButton';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
 
@@ -65,6 +66,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
               <View><Text style={ui.label}>{(spot.dist_1 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From your landmark</Text></View>
               <View><Text style={ui.label}>{(spot.dist_2 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From their landmark</Text></View>
             </View>
+            {person1 && <DirectionsButton origin={person1} destination={spot} />}
           </View>)}
         </>}
       </View>
