@@ -13,7 +13,7 @@ export default function ApiStatus() {
       if (active) setStatus('Connected to Meet Me');
     }).catch(() => {
       if (active) {
-        setStatus('API unavailable. The sample preview still works.');
+        setStatus('API unavailable. Start the server, then retry.');
         setFailed(true);
       }
     });
