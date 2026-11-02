@@ -121,3 +121,9 @@ def test_meet_nan_radius(mock_db):
         'radius': 'nan'})
     assert resp.status_code == BAD_REQUEST
     mock_db.assert_not_called()
+
+
+def test_meet_person_out_of_range():
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 100, 'lon1': -73.99, 'lat2': -20, 'lon2': -73.97})
+    assert resp.status_code == BAD_REQUEST
