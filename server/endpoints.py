@@ -10,8 +10,7 @@ from flask import Flask, request
 from flask_restx import Resource, Api  # , fields  # Namespace
 from flask_cors import CORS
 
-from sql_db import sql_db, migrate
-import sql_db.models as models
+from sql_db import init_db
 
 import werkzeug.exceptions as wz
 
@@ -22,12 +21,7 @@ import places.meet as meet
 
 app = Flask(__name__)
 
-# sql database init
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["MARIADB_URL"]
-
-sql_db.init_app(app)
-migrate.init_app(app, sql_db)
-
+init_db(app)
 CORS(app)
 api = Api(app)
 
