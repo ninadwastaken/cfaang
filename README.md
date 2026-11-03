@@ -74,7 +74,9 @@ Choose two landmarks, select a category, and tap **Find meeting spots**.
 If no places match within 1 km of the midpoint, expand the radius or change
 category. Retry is available for network and server errors. Each result has a
 Google Maps directions link starting at your selected landmark. Maps opens
-externally; the app does not compute those routes. API health indicates Flask
+externally; the app does not compute those routes. `/meet` and `/places` share a five-second database budget per request,
+including automatic search widening. Database connection failures and timeouts
+return HTTP 503 with a retry message. API health indicates Flask
 availability only and does not confirm MongoDB or the import is ready.
 
 Screens live in `mobile/src/app/`; API contracts and category mappings are in
@@ -85,13 +87,14 @@ There is no sample-data fallback. A local API smoke check:
 curl 'http://127.0.0.1:8000/meet?lat1=40.7359&lon1=-73.9911&lat2=40.7527&lon2=-73.9772&category=amenity&type=cafe'
 ```
 
-Mobile checks: `npm run lint`, `npm run typecheck`, and
-`node --test tests/api.test.cjs` from `mobile/`.
+Mobile checks: `npm run lint`, `npm run typecheck`, and `npm test` from
+`mobile/`. CI runs all three checks.
 
 ## Tests
 
 make all_tests
 
+This runs server lint and tests, places tests, and places importer tests.
 Note: the /states test needs MongoDB running locally.
 
 ## Production

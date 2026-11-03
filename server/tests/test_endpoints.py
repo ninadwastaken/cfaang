@@ -1,8 +1,5 @@
 from http.client import (
     BAD_REQUEST,
-    FORBIDDEN,
-    NOT_ACCEPTABLE,
-    NOT_FOUND,
     OK,
     SERVICE_UNAVAILABLE,
 )
@@ -127,3 +124,48 @@ def test_meet_person_out_of_range():
     resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
         'lat1': 100, 'lon1': -73.99, 'lat2': -20, 'lon2': -73.97})
     assert resp.status_code == BAD_REQUEST
+
+
+DATABASE_REQUESTS = [
+    ('/places', 'places.query.get_places'),
+    ('/meet?lat1=40.73&lon1=-73.99&lat2=40.68&lon2=-73.97',
+     'places.meet.find_spots'),
+]
+
+
+@pytest.mark.parametrize('url,target', DATABASE_REQUESTS)
+@pytest.mark.parametrize('error_type', [
+    ep.pm.errors.ServerSelectionTimeoutError,
+    ep.pm.errors.ConnectionFailure,
+    ep.pm.errors.NetworkTimeout,
+    ep.pm.errors.ExecutionTimeout,
+])
+def test_database_outage_returns_retryable_response(url, target, error_type):
+    with patch(target, side_effect=error_type('private database details')):
+        response = TEST_CLIENT.get(url)
+    assert response.status_code == SERVICE_UNAVAILABLE
+    assert response.get_json()['message'] == ep.DATABASE_UNAVAILABLE
+    assert b'private database details' not in response.data
+
+
+@pytest.mark.parametrize('url,target', DATABASE_REQUESTS)
+def test_database_query_errors_are_not_reported_as_outages(url, target):
+    error = ep.pm.errors.OperationFailure('Missing geospatial index', code=27)
+    with patch(target, side_effect=error):
+        response = TEST_CLIENT.get(url)
+    assert response.status_code == 500
+
+
+@pytest.mark.parametrize('url,target', DATABASE_REQUESTS)
+def test_database_request_has_one_shared_time_budget(url, target):
+    with patch('server.endpoints.pm.timeout') as timeout:
+        def check_budget(*args, **kwargs):
+            timeout.return_value.__enter__.assert_called_once()
+            timeout.return_value.__exit__.assert_not_called()
+            return FAKE_MEET if target.endswith('find_spots') else FAKE_PLACES
+
+        with patch(target, side_effect=check_budget):
+            response = TEST_CLIENT.get(url)
+    assert response.status_code == OK
+    timeout.assert_called_once_with(5)
+    timeout.return_value.__exit__.assert_called_once()
