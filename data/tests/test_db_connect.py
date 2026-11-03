@@ -6,6 +6,37 @@ import pytest
 from data import db_connect as dbc
 
 
+def test_ensure_connection_initializes_before_call_and_preserves_metadata(mongo):
+    @dbc.ensure_connection
+    def operation(value, *, suffix):
+        """An operation requiring a client."""
+        assert dbc.client is not None
+        return value + suffix
+
+    assert dbc.client is None
+    assert operation('first', suffix=' call') == 'first call'
+    assert operation('second', suffix=' call') == 'second call'
+    assert operation.__name__ == 'operation'
+    assert operation.__doc__ == 'An operation requiring a client.'
+    mongo.assert_called_once()
+
+
+def test_ensure_connection_does_not_run_operation_when_connection_fails(mongo):
+    error = dbc.pm.errors.ConnectionFailure('Cannot initialize client')
+    mongo.side_effect = error
+    called = []
+
+    @dbc.ensure_connection
+    def operation():
+        called.append(True)
+
+    with pytest.raises(dbc.pm.errors.ConnectionFailure) as caught:
+        operation()
+
+    assert caught.value is error
+    assert called == []
+
+
 def test_is_db_up_pings_mongo(mongo):
     mongo.return_value.admin.command.return_value = {'ok': 1}
 
