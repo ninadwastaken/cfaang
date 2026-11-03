@@ -14,7 +14,7 @@ function client(fetch, timers = {}) {
 }
 const p1 = { lat: 40.7359, lon: -73.9911 };
 const p2 = { lat: 40.7527, lon: -73.9772 };
-const result = { midpoint: p1, Spots: [], count: 0 };
+const result = { midpoint: p1, radius: 5000, Spots: [], count: 0 };
 test('sends coordinates and category mappings with the correct response casing', async () => {
   for (const [label, category, type] of [['Cafés', 'amenity', 'cafe'], ['Parks', 'leisure', 'park'], ['Museums', 'tourism', 'museum']]) {
     const api = client(async url => {
@@ -44,4 +44,19 @@ test('times out stalled requests', async () => {
     signal.addEventListener('abort', () => reject(new Error('aborted')));
   }), { setTimeout: callback => setTimeout(callback, 1) });
   await assert.rejects(api.getMeetingSpots(p1, p2, 'Parks'), /timed out/);
+});
+
+test('starts at 5 km and preserves the expanded search radius', async () => {
+  const expanded = { ...result, radius: 10000 };
+  const api = client(async url => {
+    assert.equal(new URL(url).searchParams.get('radius'), '5000');
+    return { ok: true, json: async () => expanded };
+  });
+  assert.equal((await api.getMeetingSpots(p1, p2, 'Cafés')).radius, 10000);
+});
+test('rejects missing, invalid, or smaller-than-requested response radii', async () => {
+  for (const radius of [undefined, null, '5000', NaN, Infinity, -1, 0, 1000, 10001]) {
+    const api = client(async () => ({ ok: true, json: async () => ({ ...result, radius }) }));
+    await assert.rejects(api.getMeetingSpots(p1, p2, 'Cafés'), /unexpected meeting results/);
+  }
 });

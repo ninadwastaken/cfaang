@@ -71,8 +71,9 @@ Flask on the host, or explicitly publish the Docker API to your trusted LAN.
 Running `local.sh` alone does not start MongoDB.
 
 Choose two landmarks, select a category, and tap **Find meeting spots**.
-If no places match within 1 km of the midpoint, expand the radius or change
-category. Retry is available for network and server errors. Each result has a
+The app starts searching within 5 km of the midpoint. The backend can expand
+the search up to 10 km; the results screen shows the radius actually searched.
+If no places match at 10 km, change the category or starting locations. Retry is available for network and server errors. Each result has a
 Google Maps directions link starting at your selected landmark. Maps opens
 externally; the app does not compute those routes. `/meet` and `/places` share a five-second database budget per request,
 including automatic search widening. Database connection failures and timeouts
