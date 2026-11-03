@@ -18,11 +18,13 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
   const person1 = findLandmark(params.from);
   const person2 = findLandmark(params.to);
   const category = categories.find(value => value === params.category);
-  const [radius, setRadius] = useState(1000);
+  const [radius, setRadius] = useState(5000);
   const [attempt, setAttempt] = useState(0);
   const [searchState, setState] = useState<SearchState>({ status: 'loading' });
   const valid = !!person1 && !!person2 && !!category;
   const state: SearchState = valid ? searchState : { status: 'error', message: 'Choose two landmarks and a category to find meeting spots.' };
+  const searchedRadius = state.status === 'success' ? state.data.radius : radius;
+  const nextRadius = Math.min(searchedRadius * 3, 10000);
   useEffect(() => {
     if (!person1 || !person2 || !category) {
       return;
@@ -45,7 +47,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
       <Text style={ui.title}>Make time{'\n'}to meet.</Text>
       {valid && <Text style={ui.body}>{person1.name} ↔ {person2.name}</Text>}
       <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances are straight-line distances, not walking or transit times. Place details may be incomplete or outdated.</Text></View>
-      {valid && <Text style={ui.body}>Searching within {radius / 1000} km of your midpoint.</Text>}
+      {valid && <Text style={ui.body}>{state.status === 'success' ? 'Searched' : 'Starting search'} within {searchedRadius / 1000} km of your midpoint.</Text>}
       <View accessibilityLiveRegion="polite" style={{ gap: 20 }}>
         {state.status === 'loading' && <View style={ui.card}><ActivityIndicator color={colors.green} /><Text style={ui.body}>Finding places for both of you…</Text></View>}
         {state.status === 'error' && <View style={ui.card}>
@@ -56,8 +58,8 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
           <Text style={ui.label}>{state.data.count} {state.data.count === 1 ? 'place' : 'places'} found</Text>
           {state.data.Spots.length === 0 && <View style={ui.card}>
             <Text style={ui.label}>No places found nearby</Text>
-            <Text style={ui.body}>Try another category or expand the search around your midpoint.</Text>
-            {radius < 10000 && <Pressable accessibilityRole="button" style={ui.button} onPress={() => { setState({ status: 'loading' }); setRadius(value => Math.min(value * 3, 10000)); }}><Text style={ui.buttonText}>Search within {Math.min(radius * 3, 10000) / 1000} km</Text></Pressable>}
+            <Text style={ui.body}>{searchedRadius < 10000 ? 'Try another category or expand the search around your midpoint.' : 'Try another category or change your starting locations.'}</Text>
+            {searchedRadius < 10000 && <Pressable accessibilityRole="button" style={ui.button} onPress={() => { setState({ status: 'loading' }); setRadius(nextRadius); }}><Text style={ui.buttonText}>Search within {nextRadius / 1000} km</Text></Pressable>}
           </View>}
           {state.data.Spots.map((spot, index) => <View key={`${spot.lat}:${spot.lon}:${index}`} style={ui.card}>
             <Text style={ui.eyebrow}>OPTION {index + 1}</Text>
