@@ -42,22 +42,60 @@ connection fails. This checks API availability; it does not check MongoDB.
 The Docker setup publishes the API on loopback only; use `local.sh` as above
 for physical-phone development. Use an HTTPS API URL for deployed builds.
 
-### Mobile meeting preview
+### Live meeting recommendations
 
-The mobile app has a two-location form and category-filtered sample results.
-Locations are labels only: geocoding and `/meet` integration are pending.
-All places and distances in the preview are fictional fixtures in
-`mobile/src/data/demo.ts`. The preview works even when Flask is offline;
-the home screen reports the API connection separately.
+The mobile app lets two people choose NYC landmarks and a category (cafés,
+parks, or museums). It calls `/meet` with landmark coordinates and shows real
+places from MongoDB. Landmark coordinates are approximate; address search and
+live device location are not implemented. Distances are straight-line meters
+converted to kilometers, not walking or transit times. Results follow the
+backend's current midpoint ordering; transit fairness is not calculated.
 
-Navigation uses Expo Router, with screens in `mobile/src/app/`. After installing
-dependencies or switching from the original home screen, restart Metro with
-`cd mobile && npm start -- --clear`.
+For a complete local setup:
+
+```sh
+# Stop any separately running ./local.sh server first (both use port 8000).
+docker compose up -d --build
+# Import NYC places if the database is empty. Requires Overpass internet access.
+make local_db
+cd mobile
+npm ci
+npm start -- --clear
+```
+
+Set `mobile/.env.local` as described above. The Docker API is accessible from
+the iOS simulator at `http://127.0.0.1:8000`, or from the Android emulator at
+`http://10.0.2.2:8000`. For a physical phone, Docker's MongoDB port is internal:
+add a local Compose override publishing MongoDB to loopback before running
+Flask on the host, or explicitly publish the Docker API to your trusted LAN.
+Running `local.sh` alone does not start MongoDB.
+
+Choose two landmarks, select a category, and tap **Find meeting spots**.
+The app starts searching within 5 km of the midpoint. The backend can expand
+the search up to 10 km; the results screen shows the radius actually searched.
+If no places match at 10 km, change the category or starting locations. Retry is available for network and server errors. Each result has a
+Google Maps directions link starting at your selected landmark. Maps opens
+externally; the app does not compute those routes. `/meet` and `/places` share a five-second database budget per request,
+including automatic search widening. Database connection failures and timeouts
+return HTTP 503 with a retry message. API health indicates Flask
+availability only and does not confirm MongoDB or the import is ready.
+
+Screens live in `mobile/src/app/`; API contracts and category mappings are in
+`mobile/api.ts`, and landmark presets are in `mobile/src/data/landmarks.ts`.
+There is no sample-data fallback. A local API smoke check:
+
+```sh
+curl 'http://127.0.0.1:8000/meet?lat1=40.7359&lon1=-73.9911&lat2=40.7527&lon2=-73.9772&category=amenity&type=cafe'
+```
+
+Mobile checks: `npm run lint`, `npm run typecheck`, and `npm test` from
+`mobile/`. CI runs all three checks.
 
 ## Tests
 
 make all_tests
 
+This runs server lint and tests, places tests, and places importer tests.
 Note: the /states test needs MongoDB running locally.
 
 ## Production

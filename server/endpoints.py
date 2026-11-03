@@ -2,11 +2,13 @@
 This is the file containing all of the endpoints for our flask app.
 The endpoint called `endpoints` will return all available endpoints.
 """
+from contextlib import contextmanager
 from http import HTTPStatus
 
 from flask import Flask, request
 from flask_restx import Resource, Api  # , fields  # Namespace
 from flask_cors import CORS
+import pymongo as pm
 
 import werkzeug.exceptions as wz
 
@@ -31,6 +33,21 @@ MEET_EP = '/meet'
 MEET_RESP = 'Spots'
 HEALTH_EP = '/health'
 HEALTH_RESP = 'status'
+DATABASE_TIMEOUT_SECONDS = 5
+DATABASE_UNAVAILABLE = 'Database is temporarily unavailable. Please try again.'
+
+
+@contextmanager
+def database_request():
+    """Share one database time budget across all queries in a request."""
+    try:
+        with pm.timeout(DATABASE_TIMEOUT_SECONDS):
+            yield
+    except pm.errors.PyMongoError as err:
+        if not (isinstance(err, pm.errors.ConnectionFailure) or err.timeout):
+            raise
+        app.logger.exception('Database request unavailable')
+        raise wz.ServiceUnavailable(DATABASE_UNAVAILABLE) from None
 
 
 @api.route(HELLO_EP)
@@ -91,6 +108,7 @@ class Places(Resource):
     })
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
+    @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Database unavailable')
     def get(self):
         """
         Return NYC places, like /places?category=leisure&type=park.
@@ -105,8 +123,9 @@ class Places(Resource):
         except ValueError:
             raise wz.BadRequest('limit must be a number.')
         try:
-            places = pqry.get_places(category=category,
-                                     place_type=place_type, limit=limit)
+            with database_request():
+                places = pqry.get_places(category=category,
+                                         place_type=place_type, limit=limit)
         except ValueError as err:
             raise wz.BadRequest(str(err))
         return {PLACES_RESP: places, 'count': len(places)}
@@ -128,9 +147,12 @@ class Meet(Resource):
                     'natural, shop',
         'type': 'Type within the category, like cafe or park',
         'limit': 'Max results to return (default 50, max 500)',
+        'sort': 'fair (shortest longer trip first, default) or closest '
+                '(closest to the midpoint first)',
     })
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
+    @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Database unavailable')
     def get(self):
         """
         Return spots near the midpoint of two people, like
@@ -154,12 +176,15 @@ class Meet(Resource):
         if place_type and not category:
             category = 'amenity'
         try:
-            result = meet.find_spots(
-                (lat1, lon1), (lat2, lon2), radius=radius,
-                category=category, place_type=place_type, limit=limit)
+            with database_request():
+                result = meet.find_spots(
+                    (lat1, lon1), (lat2, lon2), radius=radius,
+                    category=category, place_type=place_type, limit=limit,
+                    sort=request.args.get('sort', 'fair'))
         except ValueError as err:
             raise wz.BadRequest(str(err))
         return {'midpoint': result['midpoint'],
+                'radius': result['radius'],
                 MEET_RESP: result['spots'],
                 'count': len(result['spots'])}
 

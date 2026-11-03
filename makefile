@@ -16,6 +16,7 @@ github: FORCE
 
 all_tests: FORCE
 	cd $(API_DIR); make tests
+	pytest $(PYTESTFLAGS) places/tests data/tests/test_places_load.py
 	# cd $(DB_DIR); make tests
 
 dev_env: FORCE
