@@ -47,7 +47,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
       <Text style={ui.eyebrow}>MEETING SPOTS{category ? ` · ${category.toUpperCase()}` : ''}</Text>
       <Text style={ui.title}>Make time{'\n'}to meet.</Text>
       {valid && <Text style={ui.body}>{person1.name} ↔ {person2.name}</Text>}
-      <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances are straight-line distances, not walking or transit times. Place details may be incomplete or outdated.</Text></View>
+      <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances and differences are straight-line estimates, not walking or transit times. Place details may be incomplete or outdated.</Text></View>
       {valid && <Text style={ui.body}>{state.status === 'success' ? 'Searched' : 'Starting search'} within {searchedRadius / 1000} km of your midpoint.</Text>}
       {valid && <View style={{ gap: 10 }}>
         <Text style={ui.label}>Sort recommendations</Text>
@@ -63,6 +63,11 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
               <Text style={[ui.buttonText, { color: sort === option.value ? '#FFFFFF' : colors.green }]}>{option.label}</Text>
             </Pressable>)}
         </View>
+        <Text style={ui.body}>
+          {sort === 'fair'
+            ? 'Fairest prioritizes a shorter straight-line distance for the person farther away. Ties favor a smaller distance difference.'
+            : 'Closest to midpoint orders places by their straight-line distance from your geographic midpoint.'}
+        </Text>
       </View>}
       <View accessibilityLiveRegion="polite" style={{ gap: 20 }}>
         {state.status === 'loading' && <View style={ui.card}><ActivityIndicator color={colors.green} /><Text style={ui.body}>Finding places for both of you…</Text></View>}
@@ -83,6 +88,14 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
             <View style={{ flexDirection: 'row', gap: 24, flexWrap: 'wrap' }}>
               <View><Text style={ui.label}>{(spot.dist_1 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From your landmark</Text></View>
               <View><Text style={ui.label}>{(spot.dist_2 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From their landmark</Text></View>
+            </View>
+            <View style={{ backgroundColor: '#E5EBDD', borderRadius: 12, padding: 12, gap: 4 }}>
+              <Text style={ui.label}>Distance difference · {spot.gap.toLocaleString()} m</Text>
+              <Text style={ui.body}>
+                {spot.gap === 0
+                  ? 'Equal distance from both landmarks, rounded to meters.'
+                  : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting landmark.`}
+              </Text>
             </View>
             {person1 && <DirectionsButton origin={person1} destination={spot} />}
           </View>)}
