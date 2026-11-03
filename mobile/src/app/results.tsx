@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { categories, getMeetingSpots, MeetingResponse } from '../../api';
+import { categories, getMeetingSpots, MeetingResponse, MeetingSort } from '../../api';
 import { colors, ui } from '../components/ui';
 import { findLandmark } from '../data/landmarks';
 import DirectionsButton from '../components/DirectionsButton';
@@ -18,6 +18,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
   const person1 = findLandmark(params.from);
   const person2 = findLandmark(params.to);
   const category = categories.find(value => value === params.category);
+  const [sort, setSort] = useState<MeetingSort>('fair');
   const [radius, setRadius] = useState(5000);
   const [attempt, setAttempt] = useState(0);
   const [searchState, setState] = useState<SearchState>({ status: 'loading' });
@@ -30,13 +31,13 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
       return;
     }
     const controller = new AbortController();
-    getMeetingSpots(person1, person2, category, radius, controller.signal)
+    getMeetingSpots(person1, person2, category, radius, controller.signal, sort)
       .then(data => { if (!controller.signal.aborted) setState({ status: 'success', data }); })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) setState({ status: 'error', message: error instanceof Error ? error.message : 'Could not load meeting spots.' });
       });
     return () => controller.abort();
-  }, [person1, person2, category, radius, attempt]);
+  }, [person1, person2, category, radius, attempt, sort]);
   function edit() {
     if (router.canGoBack()) router.back();
     else router.replace('/');
@@ -46,8 +47,28 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
       <Text style={ui.eyebrow}>MEETING SPOTS{category ? ` · ${category.toUpperCase()}` : ''}</Text>
       <Text style={ui.title}>Make time{'\n'}to meet.</Text>
       {valid && <Text style={ui.body}>{person1.name} ↔ {person2.name}</Text>}
-      <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances are straight-line distances, not walking or transit times. Place details may be incomplete or outdated.</Text></View>
+      <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances and differences are straight-line estimates, not walking or transit times. Place details may be incomplete or outdated.</Text></View>
       {valid && <Text style={ui.body}>{state.status === 'success' ? 'Searched' : 'Starting search'} within {searchedRadius / 1000} km of your midpoint.</Text>}
+      {valid && <View style={{ gap: 10 }}>
+        <Text style={ui.label}>Sort recommendations</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {([{ value: 'fair', label: 'Fairest' }, { value: 'closest', label: 'Closest to midpoint' }] as const).map(option =>
+            <Pressable key={option.value} accessibilityRole="button" accessibilityState={{ selected: sort === option.value }}
+              style={[ui.button, { flexGrow: 1, backgroundColor: sort === option.value ? colors.green : '#E5EBDD' }]}
+              onPress={() => {
+                if (sort === option.value) return;
+                setState({ status: 'loading' });
+                setSort(option.value);
+              }}>
+              <Text style={[ui.buttonText, { color: sort === option.value ? '#FFFFFF' : colors.green }]}>{option.label}</Text>
+            </Pressable>)}
+        </View>
+        <Text style={ui.body}>
+          {sort === 'fair'
+            ? 'Fairest prioritizes a shorter straight-line distance for the person farther away. Ties favor a smaller distance difference.'
+            : 'Closest to midpoint orders places by their straight-line distance from your geographic midpoint.'}
+        </Text>
+      </View>}
       <View accessibilityLiveRegion="polite" style={{ gap: 20 }}>
         {state.status === 'loading' && <View style={ui.card}><ActivityIndicator color={colors.green} /><Text style={ui.body}>Finding places for both of you…</Text></View>}
         {state.status === 'error' && <View style={ui.card}>
@@ -67,6 +88,14 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
             <View style={{ flexDirection: 'row', gap: 24, flexWrap: 'wrap' }}>
               <View><Text style={ui.label}>{(spot.dist_1 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From your landmark</Text></View>
               <View><Text style={ui.label}>{(spot.dist_2 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From their landmark</Text></View>
+            </View>
+            <View style={{ backgroundColor: '#E5EBDD', borderRadius: 12, padding: 12, gap: 4 }}>
+              <Text style={ui.label}>Distance difference · {spot.gap.toLocaleString()} m</Text>
+              <Text style={ui.body}>
+                {spot.gap === 0
+                  ? 'Equal distance from both landmarks, rounded to meters.'
+                  : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting landmark.`}
+              </Text>
             </View>
             {person1 && <DirectionsButton origin={person1} destination={spot} />}
           </View>)}

@@ -6,12 +6,15 @@ const filters: Record<Category, { category: string; type: string }> = {
   Parks: { category: 'leisure', type: 'park' },
   Museums: { category: 'tourism', type: 'museum' },
 };
+export const meetingSorts = ['fair', 'closest'] as const;
+export type MeetingSort = typeof meetingSorts[number];
 export interface Point { lat: number; lon: number }
 export interface MeetingSpot extends Point {
   name: string | null;
   dist_1: number;
   dist_2: number;
   dist_mid: number;
+  gap: number;
   properties: Record<string, string>;
 }
 export interface MeetingResponse { midpoint: Point; radius: number; Spots: MeetingSpot[]; count: number }
@@ -52,16 +55,17 @@ function isPoint(value: unknown): value is Point {
   return Number.isFinite(point.lat) && Math.abs(point.lat) <= 90 && Number.isFinite(point.lon) && Math.abs(point.lon) <= 180;
 }
 export async function getMeetingSpots(person1: Point, person2: Point, category: Category,
-  radius = 5000, signal?: AbortSignal): Promise<MeetingResponse> {
+  radius = 5000, signal?: AbortSignal, sort: MeetingSort = 'fair'): Promise<MeetingResponse> {
+  if (!meetingSorts.includes(sort)) throw new Error('Choose a valid meeting sort option.');
   if (!isPoint(person1) || !isPoint(person2)) throw new Error('Choose two valid starting locations.');
   if (!Number.isFinite(radius) || radius <= 0 || radius > 10000) throw new Error('Search radius must be between 1 and 10000 meters.');
   const query = new URLSearchParams({ lat1: String(person1.lat), lon1: String(person1.lon),
-    lat2: String(person2.lat), lon2: String(person2.lon), ...filters[category], radius: String(radius), limit: '50' });
+    lat2: String(person2.lat), lon2: String(person2.lon), ...filters[category], radius: String(radius), limit: '50', sort });
   const data = await request(`/meet?${query}`, signal) as MeetingResponse | null;
   if (!data || !Number.isFinite(data.radius) || data.radius < radius || data.radius > 10000 ||
       !isPoint(data.midpoint) || !Array.isArray(data.Spots) || data.count !== data.Spots.length ||
       !data.Spots.every(spot => isPoint(spot) && (spot.name === null || typeof spot.name === 'string') &&
-        [spot.dist_1, spot.dist_2, spot.dist_mid].every(distance => Number.isFinite(distance) && distance >= 0) &&
+        [spot.dist_1, spot.dist_2, spot.dist_mid, spot.gap].every(distance => Number.isFinite(distance) && distance >= 0) &&
         spot.properties && typeof spot.properties === 'object')) {
     throw new Error('The API returned unexpected meeting results.');
   }

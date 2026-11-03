@@ -20,7 +20,7 @@ test('sends coordinates and category mappings with the correct response casing',
     const api = client(async url => {
       const parsed = new URL(url);
       assert.equal(parsed.pathname, '/meet');
-      for (const [key, value] of Object.entries({ lat1: p1.lat, lon1: p1.lon, lat2: p2.lat, lon2: p2.lon, category, type, radius: 3000, limit: 50 })) {
+      for (const [key, value] of Object.entries({ lat1: p1.lat, lon1: p1.lon, lat2: p2.lat, lon2: p2.lon, category, type, radius: 3000, limit: 50, sort: 'fair' })) {
         assert.equal(parsed.searchParams.get(key), String(value));
       }
       return { ok: true, json: async () => result };
@@ -58,5 +58,30 @@ test('rejects missing, invalid, or smaller-than-requested response radii', async
   for (const radius of [undefined, null, '5000', NaN, Infinity, -1, 0, 1000, 10001]) {
     const api = client(async () => ({ ok: true, json: async () => ({ ...result, radius }) }));
     await assert.rejects(api.getMeetingSpots(p1, p2, 'Cafés'), /unexpected meeting results/);
+  }
+});
+
+const spot = { name: 'Test café', lat: 40.74, lon: -73.98, dist_1: 1200,
+  dist_2: 1400, dist_mid: 100, gap: 200, properties: {} };
+test('supports both sorting modes and preserves server ordering', async () => {
+  for (const sort of ['fair', 'closest']) {
+    const response = { ...result, Spots: [spot, { ...spot, name: 'Second', gap: 100 }], count: 2 };
+    const api = client(async url => {
+      assert.equal(new URL(url).searchParams.get('sort'), sort);
+      return { ok: true, json: async () => response };
+    });
+    assert.equal(await api.getMeetingSpots(p1, p2, 'Cafés', 5000, undefined, sort), response);
+  }
+});
+test('rejects invalid sort options before fetching', async () => {
+  const api = client(async () => { assert.fail('must not fetch'); });
+  await assert.rejects(api.getMeetingSpots(p1, p2, 'Cafés', 5000, undefined, 'invalid'), /valid meeting sort/);
+});
+test('accepts zero gap and rejects missing or invalid gap values', async () => {
+  const api = client(async () => ({ ok: true, json: async () => ({ ...result, Spots: [{ ...spot, gap: 0 }], count: 1 }) }));
+  assert.equal((await api.getMeetingSpots(p1, p2, 'Parks')).Spots[0].gap, 0);
+  for (const gap of [undefined, null, '200', -1, NaN, Infinity]) {
+    const bad = client(async () => ({ ok: true, json: async () => ({ ...result, Spots: [{ ...spot, gap }], count: 1 }) }));
+    await assert.rejects(bad.getMeetingSpots(p1, p2, 'Parks'), /unexpected meeting results/);
   }
 });
