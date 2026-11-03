@@ -112,6 +112,18 @@ def drop_duplicates(spots):
     return kept
 
 
+def check_point(point, who):
+    """
+    Raise ValueError if a (lat, lon) point is off the map.
+    Each person has to be checked on their own. Two bad points can
+    average out to a midpoint that looks fine.
+    """
+    lat, lon = point
+    # Written this way so NaN fails too.
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError(f'{who} lat or lon out of range')
+
+
 def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
                category=None, place_type=None, limit=pqry.DEFAULT_LIMIT,
                sort='fair'):
@@ -126,6 +138,8 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     """
     if sort not in SORTS:
         raise ValueError(f'sort must be one of: {", ".join(SORTS)}')
+    check_point(person_1, 'person 1')
+    check_point(person_2, 'person 2')
     mid = midpoint(person_1, person_2)
     places, radius_used = search_widening(mid, radius, category,
                                           place_type, limit)

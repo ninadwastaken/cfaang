@@ -3,6 +3,7 @@ All interaction with MongoDB should be through this file!
 We may be required to use a new database at any point.
 """
 import os
+from functools import wraps
 
 import pymongo as pm
 
@@ -45,10 +46,24 @@ def connect_db():
     return client
 
 
+def ensure_connection(func):
+    """Initialize or reuse the Mongo client before calling func.
+
+    Server availability is checked by the operation, not by this decorator.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        connect_db()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@ensure_connection
 def get_db(db=None):
     """Connect as needed and select the configured or explicitly named DB."""
     name = db if db is not None else os.environ.get('MONGO_DB', DEFAULT_DB)
-    return connect_db()[name]
+    return client[name]
 
 
 def is_db_up():

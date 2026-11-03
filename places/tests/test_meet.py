@@ -161,3 +161,23 @@ def test_find_spots_drops_same_address_listed_twice():
                return_value=[cafe, building]):
         spots = meet.find_spots(WSP, BARCLAYS)['spots']
     assert len(spots) == 1
+
+
+def test_check_point_ok():
+    meet.check_point(WSP, 'person 1')
+
+
+@pytest.mark.parametrize('point', [(91, -73.99), (40.73, -181),
+                                   (float('nan'), -73.99)])
+def test_check_point_bad(point):
+    with pytest.raises(ValueError):
+        meet.check_point(point, 'person 1')
+
+
+def test_find_spots_bad_person_with_ok_midpoint():
+    # lat 100 and lat -20 average out to 40, which looks like NYC.
+    # It should still fail, and never hit the database.
+    with patch('places.query.get_places_near') as near:
+        with pytest.raises(ValueError, match='person 1'):
+            meet.find_spots((100, -73.99), (-20, -73.97))
+    near.assert_not_called()
