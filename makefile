@@ -38,12 +38,5 @@ local_build_quiet:
 	docker compose up -d mariadb
 	docker compose up --build --no-deps -d api
 
-# disables security
-# detaches api container logs from terminal
-local_build_no_sec_quiet:
-	docker compose up -d mongo
-	docker compose up -d mariadb
-	AUTH_BYPASS=1 docker compose up --build --no-deps -d api
-
 clean: 
 	docker compose down

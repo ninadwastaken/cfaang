@@ -1,142 +1,45 @@
 # Note, this is mainly for authorization, authentication is still a work in progress!
+from sql_db import sql_db
+from sql_db.models import *
+from sql_db.transactions import get_user_permissions
 
-import os
-from functools import wraps
+# Actions
+CREATE = 'CREATE'
+READ = 'READ'
+UPDATE = 'UPDATE'
+DELETE = 'DELETE'
 
-# set to 0 to enforce authorization, 1 to bypass authorization
-# ALWAYS SET TO 0 IN PRODUCTION!
-AUTH_BYPASS = os.getenv("AUTH_BYPASS") == "1"
-
-# import data.db_connect as dbc
-
-"""
-Our record format to meet our requirements (see security.md) will be:
-
-{
-    feature_name1: {
-        create: {
-            user_list: [],
-            checks: {
-                login: True,
-                ip_address: False,
-                dual_factor: False,
-                # etc.
-            },
-        },
-        read: {
-            user_list: [],
-            checks: {
-                login: True,
-                ip_address: False,
-                dual_factor: False,
-                # etc.
-            },
-        },
-        update: {
-            user_list: [],
-            checks: {
-                login: True,
-                ip_address: False,
-                dual_factor: False,
-                # etc.
-            },
-        },
-        delete: {
-            user_list: [],
-            checks: {
-                login: True,
-                ip_address: False,
-                dual_factor: False,
-                # etc.
-            },
-        },
-    },
-    feature_name2: # etc.
+# Action masks
+ACTION_MASKS = {
+    CREATE: 0b1000,
+    READ: 0b0100,
+    UPDATE: 0b0010,
+    DELETE: 0b0001,
 }
-"""
 
-# COLLECT_NAME = 'security'
-CREATE = 'create'
-READ = 'read'
-UPDATE = 'update'
-DELETE = 'delete'
-USER_LIST = 'user_list'
-CHECKS = 'checks'
-LOGIN = 'login'
-
-# Features:
+# Endpoints
 PLACES = 'places'
 MEET = 'meet'
 ENDPOINTS = 'endpoints'
 
-security_recs = None
-# These will come from the DB soon:
-temp_recs = {
-    PLACES: {
-        READ: {
-            USER_LIST: ['admin'],
-            CHECKS: {
-                LOGIN: True,
-            },
-        },
-    },
-    MEET: {
-        READ: {
-            USER_LIST: ['admin'],
-            CHECKS: {
-                LOGIN: True,
-            },
-        },
-    },
-    ENDPOINTS: {
-        READ: {
-            USER_LIST: ['admin'],
-            CHECKS: {
-                LOGIN: True,
-            },
-        },
-    },
-}
-
-
-def read() -> dict:
-    global security_recs
-    # dbc.read()
-    security_recs = temp_recs
-    return security_recs
-
-
-def needs_recs(fn):
-    """
-    Should be used to decorate any function that directly accesses sec recs.
-    """
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        global security_recs
-        if not security_recs:
-            security_recs = read()
-        return fn(*args, **kwargs)
-    return wrapper
-
-
-@needs_recs
-def read_feature(feature_name: str) -> dict:
-    if feature_name in security_recs:
-        return security_recs[feature_name]
-    else:
-        return None
-
-
-@needs_recs
-def is_permitted(feature_name: str, action: str, user: str, **kwargs) -> bool:
-    if AUTH_BYPASS:
-        return True
-
-    rules = read_feature(feature_name)
-
-    if not rules:
+# TODO: add ways to reduce lookups, maybe caching?
+def is_permitted(endpoint_name: str, action: str, username: str) -> bool:
+    if action not in ACTION_MASKS:
         return False
 
-    user_exists = user in rules.get(action, {}).get(USER_LIST, [])
+    user = Users.query.filter_by(username=username).first()
+    endpoint = Endpoints.query.filter_by(endpoint_name=endpoint_name).first()
 
-    return user_exists
+    if not user:
+        return False
+    elif not endpoint:
+        return False
+
+    mask = get_user_permissions(user.uid, endpoint.epid)
+
+    return bool(mask & ACTION_MASKS[action])
+
+    
+
+    
+    
