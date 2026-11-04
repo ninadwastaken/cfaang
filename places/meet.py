@@ -11,6 +11,11 @@ MIN_SPOTS = 5
 WIDEN_FACTOR = 2
 SAME_PLACE_M = 200
 
+# Rough box around the five boroughs, with a little slack at the edges.
+# Our places are all in NYC, so anyone outside it gets no real results.
+NYC_LAT = (40.47, 40.93)
+NYC_LON = (-74.27, -73.69)
+
 
 def distance_m(point_a, point_b):
     """
@@ -112,9 +117,19 @@ def drop_duplicates(spots):
     return kept
 
 
+def in_nyc(point):
+    """
+    True if a (lat, lon) point falls inside the NYC box.
+    """
+    lat, lon = point
+    # Written this way so NaN fails too.
+    return (NYC_LAT[0] <= lat <= NYC_LAT[1]
+            and NYC_LON[0] <= lon <= NYC_LON[1])
+
+
 def check_point(point, who):
     """
-    Raise ValueError if a (lat, lon) point is off the map.
+    Raise ValueError if a (lat, lon) point is off the map or outside NYC.
     Each person has to be checked on their own. Two bad points can
     average out to a midpoint that looks fine.
     """
@@ -122,6 +137,8 @@ def check_point(point, who):
     # Written this way so NaN fails too.
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         raise ValueError(f'{who} lat or lon out of range')
+    if not in_nyc(point):
+        raise ValueError(f'{who} is outside NYC')
 
 
 def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,

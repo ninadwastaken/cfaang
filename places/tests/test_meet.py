@@ -181,3 +181,37 @@ def test_find_spots_bad_person_with_ok_midpoint():
         with pytest.raises(ValueError, match='person 1'):
             meet.find_spots((100, -73.99), (-20, -73.97))
     near.assert_not_called()
+
+
+@pytest.mark.parametrize('point', [
+    (40.5795, -74.1502),  # Staten Island Mall
+    (40.8448, -73.8648),  # Bronx Zoo
+    (40.6413, -73.7781),  # JFK Airport
+])
+def test_in_nyc_all_boroughs(point):
+    assert meet.in_nyc(point)
+
+
+def test_in_nyc_box_includes_jersey_city():
+    # The box is a rectangle, so it can't follow the Hudson.
+    # Jersey City gets through, which is fine since it still
+    # gets Manhattan results.
+    assert meet.in_nyc((40.7178, -74.0431))
+
+
+@pytest.mark.parametrize('point', [
+    (41.8781, -87.6298),  # Chicago
+    (40.7357, -73.5000),  # Long Island, past the Queens border
+    (41.0340, -73.7629),  # White Plains
+])
+def test_check_point_outside_nyc(point):
+    with pytest.raises(ValueError, match='outside NYC'):
+        meet.check_point(point, 'person 2')
+
+
+def test_find_spots_outside_nyc_skips_db():
+    chicago = (41.8781, -87.6298)
+    with patch('places.query.get_places_near') as near:
+        with pytest.raises(ValueError, match='person 2 is outside NYC'):
+            meet.find_spots(WSP, chicago)
+    near.assert_not_called()
