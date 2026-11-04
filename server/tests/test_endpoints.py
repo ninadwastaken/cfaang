@@ -169,3 +169,10 @@ def test_database_request_has_one_shared_time_budget(url, target):
     assert response.status_code == OK
     timeout.assert_called_once_with(5)
     timeout.return_value.__exit__.assert_called_once()
+
+
+def test_meet_person_outside_nyc():
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 41.88, 'lon2': -87.63})
+    assert resp.status_code == BAD_REQUEST
+    assert 'outside NYC' in resp.get_json()['message']
