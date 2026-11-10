@@ -81,7 +81,7 @@ class Endpoints(Resource):
         The `get()` method will return a sorted list of available endpoints.
         """
 
-        if not sec.is_permitted(sec.ENDPOINTS, sec.READ, request.headers.get('username', '')):
+        if not sec.is_permitted(sec.ENDPOINTS, sec.READ, request.headers.get('Authorization', '')):
             raise wz.Forbidden('Not authorized')
         
         endpoints = sorted(rule.rule for rule in api.app.url_map.iter_rules())
@@ -128,7 +128,7 @@ class Places(Resource):
         """
 
         # check if user is authorized to read places
-        if not sec.is_permitted(sec.PLACES, sec.READ, request.headers.get('username', '')):
+        if not sec.is_permitted(sec.PLACES, sec.READ, request.headers.get('Authorization', '')):
             raise wz.Forbidden('Not authorized')
 
         category = request.args.get('category')
@@ -177,7 +177,7 @@ class Meet(Resource):
         /meet?lat1=40.73&lon1=-73.99&lat2=40.68&lon2=-73.97&type=cafe.
         """
         # check if user is authorized to read places
-        if not sec.is_permitted(sec.MEET, sec.READ, request.headers.get('username', '')):
+        if not sec.is_permitted(sec.MEET, sec.READ, request.headers.get('Authorization', '')):
             raise wz.Forbidden('Not authorized')
 
         try:
@@ -221,3 +221,5 @@ class Health(Resource):
         Returns ok if the server is running.
         """
         return {HEALTH_RESP: 'ok'}
+
+# authentication endpoints

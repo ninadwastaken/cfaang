@@ -1,4 +1,5 @@
 from sql_db import sql_db
+from datetime import datetime, timezone
 
 # standard tables
 class Users(sql_db.Model):
@@ -31,6 +32,16 @@ class Permissions(sql_db.Model):
     # for example, 0100 only allows read, 1011 allows everything except update, etc.
     # also, important to note permissions follow deny by default
     mask = sql_db.Column(sql_db.Integer, sql_db.CheckConstraint("mask BETWEEN 0 AND 15"), nullable=False)
+
+class ApiTokens(sql_db.Model):
+    __tablename__ = "api_tokens"
+
+    tid = sql_db.Column(sql_db.Integer, primary_key=True)
+    uid = sql_db.Column(sql_db.Integer, sql_db.ForeignKey("users.uid"), nullable=False)
+    token_hash = sql_db.Column(sql_db.String(64), index=True, unique=True, nullable=False) # stored as sha256 hash, plaintext token must never be stored in the database!
+    created_at = sql_db.Column(sql_db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    expires_at = sql_db.Column(sql_db.DateTime(timezone=True), nullable=False)
+    revoked_at = sql_db.Column(sql_db.DateTime(timezone=True), nullable=True, default=None)
 
 # associative tables
 class GroupUsers(sql_db.Model):
