@@ -15,6 +15,7 @@ import werkzeug.exceptions as wz
 import states.query as sqry
 import places.query as pqry
 import places.meet as meet
+import data.db_connect as dbc
 
 app = Flask(__name__)
 CORS(app)
@@ -33,6 +34,7 @@ MEET_EP = '/meet'
 MEET_RESP = 'Spots'
 HEALTH_EP = '/health'
 HEALTH_RESP = 'status'
+READY_EP = '/ready'
 DATABASE_TIMEOUT_SECONDS = 5
 DATABASE_UNAVAILABLE = 'Database is temporarily unavailable. Please try again.'
 
@@ -198,4 +200,17 @@ class Health(Resource):
         """
         Returns ok if the server is running.
         """
+        return {HEALTH_RESP: 'ok'}
+
+
+@api.route(READY_EP)
+class Ready(Resource):
+    """Check MongoDB connectivity independently of Flask liveness."""
+
+    @api.response(HTTPStatus.OK.value, 'MongoDB reachable')
+    @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Database unavailable')
+    def get(self):
+        """Ping MongoDB with a five-second database time budget."""
+        if not dbc.is_db_up():
+            raise wz.ServiceUnavailable(DATABASE_UNAVAILABLE)
         return {HEALTH_RESP: 'ok'}

@@ -30,6 +30,12 @@ The Swagger docs for all endpoints are at http://127.0.0.1:8000/.
 The app checks Flask's `/health` endpoint on launch and offers a retry if the
 connection fails. This checks API availability; it does not check MongoDB.
 
+Use `/ready` to check MongoDB connectivity. It pings MongoDB with a five-second
+database time budget and returns HTTP 200 with `{"status": "ok"}` on success,
+or HTTP 503 with a retry message when MongoDB is unavailable. This checks
+connectivity only, not whether places have been imported or indexes are ready.
+`/health` remains a Flask-only liveness check.
+
 1. Run `./local.sh` with your Python environment activated.
 2. Set `EXPO_PUBLIC_API_URL` in `mobile/.env.local` (see `mobile/.env.example`).
    Use `http://127.0.0.1:8000` for the iOS simulator or a browser on your computer,
