@@ -100,6 +100,46 @@ def test_find_spots_no_widen_when_enough():
     assert result['radius'] == 1000
 
 
+def test_find_spots_no_widen_when_limit_full():
+    # The search filled limit=5, but a duplicate leaves 4 spots.
+    # A wider search would return the same 5 closest places, so stop.
+    park_point = fake_place('Fort Greene Park', 40.6913, -73.9754)
+    park_area = fake_place('Fort Greene Park', 40.6917, -73.9752,
+                           osm_type='way')
+    others = [fake_place(f'Spot {n}', 40.7067, -73.9863) for n in range(3)]
+    with patch('places.query.get_places_near',
+               return_value=[park_point, park_area] + others) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000, limit=5)
+    assert near.call_count == 1
+    assert result['radius'] == 1000
+    assert len(result['spots']) == 4
+
+
+def test_find_spots_limit_over_max_still_widens():
+    # limit=1000 gets capped to 500, so 3 places is not a full search.
+    three = [fake_place(f'Spot {n}', 40.7067, -73.9863) for n in range(3)]
+    with patch('places.query.get_places_near', return_value=three) as near:
+        meet.find_spots(WSP, BARCLAYS, radius=1000, limit=1000)
+    assert near.call_count == 5
+
+
+def test_find_spots_widens_when_duplicates_leave_too_few():
+    # 5 places come back, but one park is listed twice, so there are
+    # only 4 real spots. It should widen instead of stopping.
+    park_point = fake_place('Fort Greene Park', 40.6913, -73.9754)
+    park_area = fake_place('Fort Greene Park', 40.6917, -73.9752,
+                           osm_type='way')
+    others = [fake_place(f'Spot {n}', 40.7067, -73.9863) for n in range(3)]
+    more = [fake_place(f'More {n}', 40.7067, -73.9863) for n in range(2)]
+    first = [park_point, park_area] + others
+    with patch('places.query.get_places_near',
+               side_effect=[first, first + more]) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000)
+    assert near.call_count == 2
+    assert result['radius'] == 2000
+    assert len(result['spots']) == 6
+
+
 def test_find_spots_bad_sort():
     with pytest.raises(ValueError):
         meet.find_spots(WSP, BARCLAYS, sort='random')

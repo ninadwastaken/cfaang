@@ -53,18 +53,25 @@ def fairness_gap(spot):
     return abs(spot['dist_1'] - spot['dist_2'])
 
 
-def search_widening(mid, radius, category, place_type, limit):
+def search_widening(mid, radius, category, place_type, limit, count=len):
     """
     Search around the midpoint. If fewer than MIN_SPOTS come back,
     double the radius and try again, up to MAX_RADIUS_M.
+    count says how many usable spots a list of places has. By default
+    that's every place, but find_spots passes one that skips duplicates.
+    Stops early if a search fills the limit, since $nearSphere returns
+    the closest places first and a wider search would bring back the
+    same ones.
     Returns the places and the radius that was actually used.
     """
     radius = min(radius, pqry.MAX_RADIUS_M)
+    limit = pqry.cap_limit(limit)
     while True:
         places = pqry.get_places_near(mid[0], mid[1], radius=radius,
                                       category=category,
                                       place_type=place_type, limit=limit)
-        if len(places) >= MIN_SPOTS or radius >= pqry.MAX_RADIUS_M:
+        if (count(places) >= MIN_SPOTS or len(places) >= limit
+                or radius >= pqry.MAX_RADIUS_M):
             return places, radius
         radius = min(radius * WIDEN_FACTOR, pqry.MAX_RADIUS_M)
 
@@ -141,6 +148,41 @@ def check_point(point, who):
         raise ValueError(f'{who} is outside NYC')
 
 
+def build_spots(places, person_1, person_2, mid):
+    """
+    Turn places from the db into spots with each person's distance.
+    """
+    spots = []
+    for place in places:
+        point = place_point(place)
+        spot = {
+            'name': place.get('properties', {}).get('name'),
+            'osm_type': place.get('osm_type'),
+            'lat': point[0],
+            'lon': point[1],
+            'dist_1': round(distance_m(person_1, point)),
+            'dist_2': round(distance_m(person_2, point)),
+            'dist_mid': round(distance_m(mid, point)),
+            'properties': place.get('properties', {}),
+        }
+        spot['gap'] = fairness_gap(spot)
+        spots.append(spot)
+    return spots
+
+
+def sort_spots(spots, sort):
+    """
+    Sort spots in place for the given sort option.
+    """
+    if sort == 'fair':
+        # Sorting on the gap alone would favor far-off spots that happen
+        # to be equally far from both people, so sort on the longer trip
+        # and break ties by the gap.
+        spots.sort(key=lambda s: (max(s['dist_1'], s['dist_2']), s['gap']))
+    else:
+        spots.sort(key=lambda s: s['dist_mid'])
+
+
 def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
                category=None, place_type=None, limit=pqry.DEFAULT_LIMIT,
                sort='fair'):
@@ -158,30 +200,19 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     check_point(person_1, 'person 1')
     check_point(person_2, 'person 2')
     mid = midpoint(person_1, person_2)
+
+    def unique_count(places):
+        # Count after dropping duplicates. Otherwise a park listed twice
+        # counts as two spots and we stop widening too early.
+        spots = build_spots(places, person_1, person_2, mid)
+        sort_spots(spots, sort)
+        return len(drop_duplicates(spots))
+
     places, radius_used = search_widening(mid, radius, category,
-                                          place_type, limit)
-    spots = []
-    for place in places:
-        point = place_point(place)
-        spot = {
-            'name': place.get('properties', {}).get('name'),
-            'osm_type': place.get('osm_type'),
-            'lat': point[0],
-            'lon': point[1],
-            'dist_1': round(distance_m(person_1, point)),
-            'dist_2': round(distance_m(person_2, point)),
-            'dist_mid': round(distance_m(mid, point)),
-            'properties': place.get('properties', {}),
-        }
-        spot['gap'] = fairness_gap(spot)
-        spots.append(spot)
-    if sort == 'fair':
-        # Sorting on the gap alone would favor far-off spots that happen
-        # to be equally far from both people, so sort on the longer trip
-        # and break ties by the gap.
-        spots.sort(key=lambda s: (max(s['dist_1'], s['dist_2']), s['gap']))
-    else:
-        spots.sort(key=lambda s: s['dist_mid'])
+                                          place_type, limit,
+                                          count=unique_count)
+    spots = build_spots(places, person_1, person_2, mid)
+    sort_spots(spots, sort)
     spots = drop_duplicates(spots)
     return {'midpoint': {'lat': mid[0], 'lon': mid[1]},
             'radius': radius_used, 'spots': spots}
