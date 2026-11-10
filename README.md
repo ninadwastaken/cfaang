@@ -80,7 +80,8 @@ Choose two landmarks, select a category, and tap **Find meeting spots**.
 The app starts searching within 5 km of the midpoint. The backend can expand
 the search up to 10 km; the results screen shows the radius actually searched.
 If no places match at 10 km, change the category or starting locations. Retry is available for network and server errors. Each result has a
-Google Maps directions link starting at your selected landmark. Maps opens
+Google Maps directions links starting at either person's selected landmark,
+labeled “Directions from your landmark” and “Directions from their landmark.” Maps opens
 externally; the app does not compute those routes. `/meet` and `/places` share a five-second database budget per request,
 including automatic search widening. Database connection failures and timeouts
 return HTTP 503 with a retry message. API health indicates Flask

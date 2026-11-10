@@ -97,7 +97,8 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
                   : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting landmark.`}
               </Text>
             </View>
-            {person1 && <DirectionsButton origin={person1} destination={spot} />}
+            {person1 && <DirectionsButton origin={person1} destination={spot} person="your" />}
+            {person2 && <DirectionsButton origin={person2} destination={spot} person="their" />}
           </View>)}
         </>}
       </View>
