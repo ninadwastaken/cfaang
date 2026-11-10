@@ -59,6 +59,20 @@ def test_fairness_gap():
     assert meet.fairness_gap({'dist_1': 500, 'dist_2': 500}) == 0
 
 
+def test_walk_minutes():
+    assert meet.walk_minutes(0) == 0
+    # 800 m straight line is about 1040 m of streets, so 13 minutes.
+    assert meet.walk_minutes(800) == 13
+
+
+def test_find_spots_adds_walk_minutes():
+    spot = fake_place('Middle', 40.7067, -73.9863)
+    with patch('places.query.get_places_near', return_value=[spot]):
+        found = meet.find_spots(WSP, BARCLAYS)['spots'][0]
+    assert found['walk_min_1'] == meet.walk_minutes(found['dist_1'])
+    assert found['walk_min_2'] == meet.walk_minutes(found['dist_2'])
+
+
 def test_find_spots_fair_sort():
     # One spot is right at the midpoint, the other is about 1 km north,
     # closer to person 1. The fair sort should put the even one first.

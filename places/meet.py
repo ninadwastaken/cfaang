@@ -11,6 +11,11 @@ MIN_SPOTS = 5
 WIDEN_FACTOR = 2
 SAME_PLACE_M = 200
 
+# A relaxed walking pace is about 80 m a minute. Streets don't run in
+# straight lines, so walks are usually ~30% longer than the crow flies.
+WALK_M_PER_MIN = 80
+STREET_FACTOR = 1.3
+
 # Rough box around the five boroughs, with a little slack at the edges.
 # Our places are all in NYC, so anyone outside it gets no real results.
 NYC_LAT = (40.47, 40.93)
@@ -43,6 +48,13 @@ def place_point(place):
     """
     lon, lat = place['geometry']['coordinates']
     return lat, lon
+
+
+def walk_minutes(dist_m):
+    """
+    Rough walking time in minutes for a straight-line distance in meters.
+    """
+    return round(dist_m * STREET_FACTOR / WALK_M_PER_MIN)
 
 
 def fairness_gap(spot):
@@ -166,6 +178,8 @@ def build_spots(places, person_1, person_2, mid):
             'properties': place.get('properties', {}),
         }
         spot['gap'] = fairness_gap(spot)
+        spot['walk_min_1'] = walk_minutes(spot['dist_1'])
+        spot['walk_min_2'] = walk_minutes(spot['dist_2'])
         spots.append(spot)
     return spots
 
@@ -190,6 +204,7 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     Find places near the midpoint of two people.
     Each spot gets dist_1 and dist_2, how far each person is from it
     in meters, plus gap, the difference between the two.
+    walk_min_1 and walk_min_2 are rough walking times in minutes.
     sort='fair' puts the spots with the shortest longer trip first,
     so nobody gets stuck with a long trip.
     sort='closest' puts the spots closest to the midpoint first.
