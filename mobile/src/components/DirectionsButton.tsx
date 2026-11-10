@@ -3,7 +3,11 @@ import { Linking, Pressable, Text, View } from 'react-native';
 import type { Point } from '../../api';
 import { ui } from './ui';
 
-export default function DirectionsButton({ origin, destination }: { origin: Point; destination: Point }) {
+export default function DirectionsButton({ origin, destination, person }: {
+  origin: Point;
+  destination: Point;
+  person: 'your' | 'their';
+}) {
   const [error, setError] = useState('');
   async function open() {
     setError('');
@@ -15,7 +19,7 @@ export default function DirectionsButton({ origin, destination }: { origin: Poin
     }
   }
   return <View style={{ gap: 8 }}>
-    <Pressable accessibilityRole="link" accessibilityLabel="Directions from your landmark in Google Maps" style={ui.button} onPress={open}><Text style={ui.buttonText}>Directions from your landmark ↗</Text></Pressable>
+    <Pressable accessibilityRole="link" accessibilityLabel={`Directions from ${person} landmark in Google Maps`} style={ui.button} onPress={open}><Text style={ui.buttonText}>Directions from {person} landmark ↗</Text></Pressable>
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
   </View>;
 }
