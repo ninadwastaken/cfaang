@@ -40,6 +40,39 @@ def test_health():
     assert resp_json[ep.HEALTH_RESP] == 'ok'
 
 
+@patch('data.db_connect.connect_db')
+def test_ready_when_mongo_responds(mock_connect):
+    mock_connect.return_value.admin.command.return_value = {'ok': 1}
+    response = TEST_CLIENT.get('/ready')
+    assert response.status_code == OK
+    assert response.get_json() == {'status': 'ok'}
+    mock_connect.return_value.admin.command.assert_called_once_with('ping')
+
+
+@pytest.mark.parametrize('error_type', [
+    ep.pm.errors.ServerSelectionTimeoutError,
+    ep.pm.errors.ConnectionFailure,
+    ep.pm.errors.OperationFailure,
+])
+@patch('data.db_connect.connect_db')
+def test_ready_when_mongo_unavailable(mock_connect, error_type):
+    mock_connect.return_value.admin.command.side_effect = error_type(
+        'private database details')
+    response = TEST_CLIENT.get('/ready')
+    assert response.status_code == SERVICE_UNAVAILABLE
+    assert response.get_json()['message'] == ep.DATABASE_UNAVAILABLE
+    assert b'private database details' not in response.data
+
+
+@patch('data.db_connect.connect_db', side_effect=AssertionError(
+    'Liveness must not connect to MongoDB'))
+def test_health_does_not_require_mongo(mock_connect):
+    response = TEST_CLIENT.get('/health')
+    assert response.status_code == OK
+    assert response.get_json() == {'status': 'ok'}
+    mock_connect.assert_not_called()
+
+
 FAKE_PLACES = [{'osm_id': 1, 'properties': {'amenity': 'cafe'}}]
 
 
