@@ -6,6 +6,7 @@ import { categories, getMeetingSpots, MeetingResponse, MeetingSort } from '../..
 import { colors, ui } from '../components/ui';
 import { findLandmark } from '../data/landmarks';
 import { placeDetails, walkingEstimate } from '../utils/placeDetails';
+import MeetingMap from '../components/MeetingMap';
 import DirectionsButton from '../components/DirectionsButton';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
@@ -19,6 +20,8 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
   const person1 = findLandmark(params.from);
   const person2 = findLandmark(params.to);
   const category = categories.find(value => value === params.category);
+  const [view, setView] = useState<'list' | 'map'>('list');
+  const [selected, setSelected] = useState(0);
   const [sort, setSort] = useState<MeetingSort>('fair');
   const [radius, setRadius] = useState(5000);
   const [attempt, setAttempt] = useState(0);
@@ -78,12 +81,22 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
         </View>}
         {state.status === 'success' && <>
           <Text style={ui.label}>{state.data.count} {state.data.count === 1 ? 'place' : 'places'} found</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['list', 'map'] as const).map(mode => <Pressable key={mode} accessibilityRole="button" accessibilityState={{ selected: view === mode }}
+              style={[ui.button, { flex: 1, backgroundColor: view === mode ? colors.green : '#E5EBDD' }]}
+              onPress={() => { setView(mode); setSelected(0); }}>
+              <Text style={[ui.buttonText, { color: view === mode ? '#FFFFFF' : colors.green }]}>{mode === 'list' ? 'List' : 'Map'}</Text>
+            </Pressable>)}
+          </View>
+          {view === 'map' && person1 && person2 && <MeetingMap person1={person1} person2={person2} data={state.data} selected={Math.min(selected, Math.max(state.data.Spots.length - 1, 0))} onSelect={setSelected} />}
+
           {state.data.Spots.length === 0 && <View style={ui.card}>
             <Text style={ui.label}>No places found nearby</Text>
             <Text style={ui.body}>{searchedRadius < 10000 ? 'Try another category or expand the search around your midpoint.' : 'Try another category or change your starting locations.'}</Text>
             {searchedRadius < 10000 && <Pressable accessibilityRole="button" style={ui.button} onPress={() => { setState({ status: 'loading' }); setRadius(nextRadius); }}><Text style={ui.buttonText}>Search within {nextRadius / 1000} km</Text></Pressable>}
           </View>}
           {state.data.Spots.map((spot, index) => {
+            if (view === 'map' && index !== Math.min(selected, state.data.Spots.length - 1)) return null;
             const details = placeDetails(spot.properties);
             return <View key={`${spot.lat}:${spot.lon}:${index}`} style={ui.card}>
             <Text style={ui.eyebrow}>OPTION {index + 1}</Text>
