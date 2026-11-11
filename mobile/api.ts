@@ -15,6 +15,8 @@ export interface MeetingSpot extends Point {
   dist_2: number;
   dist_mid: number;
   gap: number;
+  walk_min_1?: number;
+  walk_min_2?: number;
   properties: Record<string, string>;
 }
 export interface MeetingResponse { midpoint: Point; radius: number; Spots: MeetingSpot[]; count: number }
@@ -44,9 +46,14 @@ async function request(path: string, signal?: AbortSignal): Promise<unknown> {
     signal?.removeEventListener('abort', abort);
   }
 }
-export async function checkHealth(): Promise<string> {
-  const data = await request('/health') as { status?: unknown } | null;
+export async function checkHealth(signal?: AbortSignal): Promise<string> {
+  const data = await request('/health', signal) as { status?: unknown } | null;
   if (data?.status !== 'ok') throw new Error('The API returned an unexpected health response.');
+  return data.status;
+}
+export async function checkReadiness(signal?: AbortSignal): Promise<string> {
+  const data = await request('/ready', signal) as { status?: unknown } | null;
+  if (data?.status !== 'ok') throw new Error('The API returned an unexpected database readiness response.');
   return data.status;
 }
 function isPoint(value: unknown): value is Point {
@@ -66,6 +73,7 @@ export async function getMeetingSpots(person1: Point, person2: Point, category: 
       !isPoint(data.midpoint) || !Array.isArray(data.Spots) || data.count !== data.Spots.length ||
       !data.Spots.every(spot => isPoint(spot) && (spot.name === null || typeof spot.name === 'string') &&
         [spot.dist_1, spot.dist_2, spot.dist_mid, spot.gap].every(distance => Number.isFinite(distance) && distance >= 0) &&
+        [spot.walk_min_1, spot.walk_min_2].every(minutes => minutes === undefined || (Number.isInteger(minutes) && minutes >= 0)) &&
         spot.properties && typeof spot.properties === 'object')) {
     throw new Error('The API returned unexpected meeting results.');
   }

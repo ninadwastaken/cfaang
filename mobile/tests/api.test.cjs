@@ -85,3 +85,28 @@ test('accepts zero gap and rejects missing or invalid gap values', async () => {
     await assert.rejects(bad.getMeetingSpots(p1, p2, 'Parks'), /unexpected meeting results/);
   }
 });
+
+test('checks database readiness independently from API liveness', async () => {
+  const api = client(async url => {
+    assert.equal(new URL(url).pathname, '/ready');
+    return { ok: true, json: async () => ({ status: 'ok' }) };
+  });
+  assert.equal(await api.checkReadiness(), 'ok');
+  const unavailable = client(async () => ({ ok: false, status: 503,
+    json: async () => ({ message: 'Database is temporarily unavailable. Please try again.' }) }));
+  await assert.rejects(unavailable.checkReadiness(), /Database is temporarily unavailable/);
+  const malformed = client(async () => ({ ok: true, json: async () => ({}) }));
+  await assert.rejects(malformed.checkReadiness(), /unexpected database readiness/);
+});
+test('accepts rough walking estimates and supports servers that omit them', async () => {
+  for (const minutes of [undefined, 0, 15]) {
+    const api = client(async () => ({ ok: true, json: async () => ({ ...result,
+      Spots: [{ ...spot, walk_min_1: minutes, walk_min_2: minutes }], count: 1 }) }));
+    assert.equal((await api.getMeetingSpots(p1, p2, 'Parks')).Spots[0].walk_min_1, minutes);
+  }
+  for (const minutes of [null, '15', -1, 1.5, NaN, Infinity]) {
+    const api = client(async () => ({ ok: true, json: async () => ({ ...result,
+      Spots: [{ ...spot, walk_min_1: minutes }], count: 1 }) }));
+    await assert.rejects(api.getMeetingSpots(p1, p2, 'Parks'), /unexpected meeting results/);
+  }
+});
