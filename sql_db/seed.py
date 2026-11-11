@@ -27,20 +27,39 @@ def seed_endpoints():
         endpoints = Endpoints(endpoint_name="endpoints")
         sql_db.session.add(endpoints)
 
+    # create /token endpoint
+    if not Endpoints.query.filter_by(endpoint_name="token").first():
+        token = Endpoints(endpoint_name="token")
+        sql_db.session.add(token)
+
 def seed_permissions():
     # create admin permissions for /endpoints
-    endpoint = Endpoints.query.filter_by(endpoint_name="endpoints").first()
+    endpoints = Endpoints.query.filter_by(endpoint_name="endpoints").first()
 
-    if not endpoint:
+    if not endpoints:
         raise Exception("Endpoint '/endpoints' does not exist.")
     
     if not Permissions.query.filter_by(permission_name="endpoints-admin").first():
         endpoints_admin = Permissions(
-            epid=endpoint.epid,
+            epid=endpoints.epid,
             permission_name="endpoints-admin",
             mask=0b0100
         )
         sql_db.session.add(endpoints_admin)
+
+    # create user permissions for /token
+    token = Endpoints.query.filter_by(endpoint_name="token").first()
+
+    if not token:
+        raise Exception("Endpoint '/token' does not exist.")
+
+    if not Permissions.query.filter_by(permission_name='token-user').first():
+        token_user = Permissions(
+            epid=token.epid,
+            permission_name="token-user",
+            mask=0b1101
+        )
+        sql_db.session.add(token_user)
 
 def seed_group_users():
     # associate dev to user and admin
@@ -76,10 +95,20 @@ def seed_group_permissions():
     if not GroupPermissions.query.filter_by(gid=admin.gid, pmid=endpoints_admin.pmid).first():
         admin_endpoints_admin = GroupPermissions(gid=admin.gid, pmid=endpoints_admin.pmid)
         sql_db.session.add(admin_endpoints_admin)
-    
-def seed_test_user():
-    if not Users.query.filter_by(username="test_user").first():
-        pass
+
+    # associate user to token-user
+    user = Groups.query.filter_by(group_name="user").first()
+    token_user = Permissions.query.filter_by(permission_name="token-user").first()
+
+    if not user:
+        raise Exception("Could not find user group")
+    elif not token_user:
+        raise Exception("Could not find token-user permissions")
+
+    if not GroupPermissions.query.filter_by(gid=user.gid, pmid=token_user.pmid).first():
+        user_token_user = GroupPermissions(gid=user.gid, pmid=token_user.pmid)
+        sql_db.session.add(user_token_user)
+
 
 def seed_database():
     try:

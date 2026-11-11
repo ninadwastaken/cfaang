@@ -2,7 +2,13 @@
 This is the file containing all of the endpoints for our flask app.
 The endpoint called `endpoints` will return all available endpoints.
 """
-import os # used to get environment variables
+# import os # used to get environment variables
+import hashlib
+import secrets
+
+from datetime import datetime, timezone, timedelta
+
+from argon2.exceptions import VerificationError
 
 from contextlib import contextmanager
 from http import HTTPStatus
@@ -12,7 +18,8 @@ from flask_restx import Resource, Api  # , fields  # Namespace
 from flask_cors import CORS
 import pymongo as pm
 
-from sql_db import init_db
+from sql_db import init_db, sql_db, ph
+from sql_db.models import Users, ApiTokens
 
 import werkzeug.exceptions as wz
 
@@ -40,6 +47,7 @@ MEET_EP = '/meet'
 MEET_RESP = 'Spots'
 HEALTH_EP = '/health'
 HEALTH_RESP = 'status'
+TOKEN_EP = '/auth/token'
 DATABASE_TIMEOUT_SECONDS = 5
 DATABASE_UNAVAILABLE = 'Database is temporarily unavailable. Please try again.'
 
@@ -223,3 +231,48 @@ class Health(Resource):
         return {HEALTH_RESP: 'ok'}
 
 # authentication endpoints
+@api.route('/auth/token')
+class Token(Resource):
+    """
+    Authenticate users and manage API tokens.
+    """
+    @api.response(HTTPStatus.CREATED.value, 'Token created')
+    @api.response(HTTPStatus.UNAUTHORIZED.value, 'Invalid credentials')
+    @api.response(HTTPStatus.BAD_REQUEST.value, 'Invalid request')
+    def post(self):
+        # authenticate a user and create an api token
+        username = request.args.get('username')
+        password = request.args.get('password')
+
+        if not username or not password:
+            raise wz.BadRequest('Username and password required.')
+
+        user = Users.query.filter_by(username=username).first()
+        
+        if not user:
+            raise wz.Unauthorized('Invalid credentials.')
+
+        try:
+            ph.verify(user.password, password)
+        except VerificationError:
+            raise wz.Unauthorized('Invalid credentials.')
+
+        # auth good, make token
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        expires = now + timedelta(days=7)
+
+        # save to db
+        api_token = ApiTokens(uid=user.uuid, token_hash=token_hash, created_at=now, expires_at=expires)
+
+        sql_db.session.add(api_token)
+        sql_db.session.commit()
+
+        # return vals
+        return {
+            'access_token': token,
+            'token_type': 'Bearer',
+            'expires_at': expires.isoformat() + 'Z'
+        }, HTTPStatus.CREATED
