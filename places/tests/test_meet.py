@@ -324,3 +324,43 @@ def test_find_spots_outside_nyc_skips_db():
         with pytest.raises(ValueError, match='person 2 is outside NYC'):
             meet.find_spots(WSP, chicago)
     near.assert_not_called()
+
+
+def test_find_spots_max_walk_drops_long_walks():
+    # Middle is about 46 minutes from each person. Near WSP is a
+    # short walk for person 1 but over an hour for person 2.
+    middle = fake_place('Middle', 40.7067, -73.9863)
+    near_wsp = fake_place('Near WSP', 40.73, -73.997)
+    with patch('places.query.get_places_near',
+               return_value=[middle, near_wsp]):
+        spots = meet.find_spots(WSP, BARCLAYS, max_walk=60)['spots']
+    assert [s['name'] for s in spots] == ['Middle']
+    assert all(max(s['walk_min_1'], s['walk_min_2']) <= 60 for s in spots)
+
+
+def test_find_spots_max_walk_none_keeps_all():
+    middle = fake_place('Middle', 40.7067, -73.9863)
+    near_wsp = fake_place('Near WSP', 40.73, -73.997)
+    with patch('places.query.get_places_near',
+               return_value=[middle, near_wsp]):
+        spots = meet.find_spots(WSP, BARCLAYS)['spots']
+    assert len(spots) == 2
+
+
+def test_find_spots_max_walk_widens_when_too_few():
+    # 5 places come back, but only 1 is a short enough walk,
+    # so it should keep widening.
+    middle = [fake_place('Middle', 40.7067, -73.9863)]
+    far = [fake_place(f'Far {n}', 40.73, -73.997) for n in range(4)]
+    with patch('places.query.get_places_near',
+               return_value=middle + far) as near:
+        meet.find_spots(WSP, BARCLAYS, radius=1000, max_walk=60)
+    assert near.call_count == 5
+
+
+@pytest.mark.parametrize('max_walk', [0, -5, float('nan')])
+def test_find_spots_bad_max_walk(max_walk):
+    with patch('places.query.get_places_near') as near:
+        with pytest.raises(ValueError, match='max_walk'):
+            meet.find_spots(WSP, BARCLAYS, max_walk=max_walk)
+    near.assert_not_called()
