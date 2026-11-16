@@ -55,7 +55,13 @@ parks, or museums). It calls `/meet` with landmark coordinates and shows real
 places from MongoDB. Landmark coordinates are approximate; address search and
 live device location are not implemented. Distances are straight-line meters
 converted to kilometers, not walking or transit times. Results follow the
-backend's current midpoint ordering; transit fairness is not calculated.
+selected ordering: fairest (shortest longer straight-line trip first) or
+closest to the midpoint. Transit fairness is not calculated. The backend
+retrieves up to 500 candidates nearest the midpoint within the searched radius,
+ranks them, removes duplicate places, and then applies the requested result
+limit (1–500, default 50). Changing only the result limit does not change the
+candidate pool or search widening. Fairness ranking is within that candidate
+pool, not every place in NYC.
 
 For a complete local setup:
 

@@ -35,7 +35,7 @@ def test_find_spots_searches_midpoint():
     # Nothing found, so it widens all the way to the max radius.
     near.assert_called_with(mid[0], mid[1], radius=10000,
                             category='amenity', place_type='cafe',
-                            limit=50)
+                            limit=500)
     assert result['midpoint'] == {'lat': mid[0], 'lon': mid[1]}
     assert result['spots'] == []
 
@@ -81,6 +81,61 @@ def test_find_spots_fair_sort_prefers_near_over_far_even():
         spots = meet.find_spots(WSP, BARCLAYS)['spots']
     assert spots[0]['name'] == 'Near'
     assert spots[0]['gap'] > spots[-1]['gap']
+
+
+def limited_candidates(places):
+    """Model Mongo's nearest-first cursor respecting the retrieval limit."""
+    def search(*args, limit, **kwargs):
+        return places[:max(1, min(limit, 500))]
+    return search
+
+
+def test_result_limit_applies_after_fair_ranking():
+    # The north spot is closer to the midpoint, but farther from the
+    # southern person. The east spot gives the shorter longest trip.
+    candidates = [fake_place('North', 40.705, -74),
+                  fake_place('East', 40.7, -73.99)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        result = meet.find_spots((40.68, -74), (40.72, -74), limit=1)
+    assert [spot['name'] for spot in result['spots']] == ['East']
+
+
+@pytest.mark.parametrize('sort', ['fair', 'closest'])
+def test_result_limit_applies_after_deduplication(sort):
+    candidates = [fake_place('Park', 40.7, -74),
+                  fake_place('Park', 40.7001, -74, osm_type='way'),
+                  fake_place('Cafe', 40.701, -74)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        result = meet.find_spots((40.68, -74), (40.72, -74),
+                                 limit=2, sort=sort)
+    assert [spot['name'] for spot in result['spots']] == ['Park', 'Cafe']
+
+
+@pytest.mark.parametrize('sort', ['fair', 'closest'])
+def test_result_limit_does_not_change_search_radius_or_ranking(sort):
+    candidates = [fake_place(f'Place {n}', 40.7 + n * 0.001, -74)
+                  for n in range(5)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        small = meet.find_spots((40.68, -74), (40.72, -74),
+                                limit=1, sort=sort)
+        large = meet.find_spots((40.68, -74), (40.72, -74),
+                                limit=5, sort=sort)
+    assert small['radius'] == large['radius'] == 1000
+    assert small['spots'] == large['spots'][:1]
+
+
+@pytest.mark.parametrize('limit, expected', [
+    (-1, 1), (0, 1), (2, 2), (99999, 500),
+])
+def test_result_limit_is_clamped(limit, expected):
+    candidates = [fake_place(f'Place {n}', 40.7, -74) for n in range(501)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        result = meet.find_spots(WSP, BARCLAYS, limit=limit)
+    assert len(result['spots']) == expected
 
 
 def test_find_spots_widens_when_few_results():

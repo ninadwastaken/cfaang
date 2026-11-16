@@ -53,17 +53,19 @@ def fairness_gap(spot):
     return abs(spot['dist_1'] - spot['dist_2'])
 
 
-def search_widening(mid, radius, category, place_type, limit):
+def search_widening(mid, radius, category, place_type):
     """
     Search around the midpoint. If fewer than MIN_SPOTS come back,
     double the radius and try again, up to MAX_RADIUS_M.
+    Retrieve up to MAX_LIMIT candidates independently of the result limit.
     Returns the places and the radius that was actually used.
     """
     radius = min(radius, pqry.MAX_RADIUS_M)
     while True:
         places = pqry.get_places_near(mid[0], mid[1], radius=radius,
                                       category=category,
-                                      place_type=place_type, limit=limit)
+                                      place_type=place_type,
+                                      limit=pqry.MAX_LIMIT)
         if len(places) >= MIN_SPOTS or radius >= pqry.MAX_RADIUS_M:
             return places, radius
         radius = min(radius * WIDEN_FACTOR, pqry.MAX_RADIUS_M)
@@ -151,15 +153,18 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     sort='fair' puts the spots with the shortest longer trip first,
     so nobody gets stuck with a long trip.
     sort='closest' puts the spots closest to the midpoint first.
-    If there are only a few spots nearby, the search widens.
+    If there are only a few candidates nearby, the search widens.
+    Rank the nearest MAX_LIMIT candidates in the searched radius, remove
+    duplicates, then apply the result limit (clamped to 1..MAX_LIMIT).
     """
     if sort not in SORTS:
         raise ValueError(f'sort must be one of: {", ".join(SORTS)}')
     check_point(person_1, 'person 1')
     check_point(person_2, 'person 2')
+    limit = max(1, min(limit, pqry.MAX_LIMIT))
     mid = midpoint(person_1, person_2)
     places, radius_used = search_widening(mid, radius, category,
-                                          place_type, limit)
+                                          place_type)
     spots = []
     for place in places:
         point = place_point(place)
@@ -182,6 +187,6 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
         spots.sort(key=lambda s: (max(s['dist_1'], s['dist_2']), s['gap']))
     else:
         spots.sort(key=lambda s: s['dist_mid'])
-    spots = drop_duplicates(spots)
+    spots = drop_duplicates(spots)[:limit]
     return {'midpoint': {'lat': mid[0], 'lon': mid[1]},
             'radius': radius_used, 'spots': spots}
