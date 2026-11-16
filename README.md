@@ -55,7 +55,13 @@ parks, or museums). It calls `/meet` with landmark coordinates and shows real
 places from MongoDB. Landmark coordinates are approximate; address search and
 live device location are not implemented. Distances are straight-line meters
 converted to kilometers, not walking or transit times. Results follow the
-backend's current midpoint ordering; transit fairness is not calculated.
+selected ordering: fairest (shortest longer straight-line trip first) or
+closest to the midpoint. Transit fairness is not calculated. The backend
+retrieves up to 500 candidates nearest the midpoint within the searched radius,
+ranks them, removes duplicate places, and then applies the requested result
+limit (1–500, default 50). Changing only the result limit does not change the
+candidate pool or search widening. Fairness ranking is within that candidate
+pool, not every place in NYC.
 
 For a complete local setup:
 
@@ -77,6 +83,9 @@ Flask on the host, or explicitly publish the Docker API to your trusted LAN.
 Running `local.sh` alone does not start MongoDB.
 
 Choose two landmarks, select a category, and tap **Find meeting spots**.
+Result cards show an address and listed opening hours when those details are
+available in the imported place data. Hours are shown as provided by the source;
+the app does not calculate whether a venue is currently open.
 The app starts searching within 5 km of the midpoint. The backend can expand
 the search up to 10 km; the results screen shows the radius actually searched.
 If no places match at 10 km, change the category or starting locations. Retry is available for network and server errors. Each result has a

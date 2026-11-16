@@ -221,7 +221,8 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     sort='closest' puts the spots closest to the midpoint first.
     max_walk drops spots where either person walks more than that
     many minutes.
-    If there are only a few spots nearby, the search widens.
+    If there are only a few unique spots nearby, the search widens.
+    Rank up to MAX_LIMIT candidates, deduplicate, then apply the result limit.
     """
     if sort not in SORTS:
         raise ValueError(f'sort must be one of: {", ".join(SORTS)}')
@@ -230,6 +231,7 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
         raise ValueError('max_walk must be positive')
     check_point(person_1, 'person 1')
     check_point(person_2, 'person 2')
+    limit = pqry.cap_limit(limit)
     mid = midpoint(person_1, person_2)
 
     def unique_count(places):
@@ -242,11 +244,11 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
         return len(drop_duplicates(spots))
 
     places, radius_used = search_widening(mid, radius, category,
-                                          place_type, limit,
+                                          place_type, pqry.MAX_LIMIT,
                                           count=unique_count)
     spots = build_spots(places, person_1, person_2, mid)
     spots = within_walk(spots, max_walk)
     sort_spots(spots, sort)
-    spots = drop_duplicates(spots)
+    spots = drop_duplicates(spots)[:limit]
     return {'midpoint': {'lat': mid[0], 'lon': mid[1]},
             'radius': radius_used, 'spots': spots}
