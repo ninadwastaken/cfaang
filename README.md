@@ -83,6 +83,9 @@ Flask on the host, or explicitly publish the Docker API to your trusted LAN.
 Running `local.sh` alone does not start MongoDB.
 
 Choose two landmarks, select a category, and tap **Find meeting spots**.
+Result cards show an address and listed opening hours when those details are
+available in the imported place data. Hours are shown as provided by the source;
+the app does not calculate whether a venue is currently open.
 The app starts searching within 5 km of the midpoint. The backend can expand
 the search up to 10 km; the results screen shows the radius actually searched.
 If no places match at 10 km, change the category or starting locations. Retry is available for network and server errors. Each result has a

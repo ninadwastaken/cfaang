@@ -6,6 +6,7 @@ import { categories, getMeetingSpots, MeetingResponse, MeetingSort } from '../..
 import { colors, ui } from '../components/ui';
 import { findLandmark } from '../data/landmarks';
 import DirectionsButton from '../components/DirectionsButton';
+import PlaceDetails from '../components/PlaceDetails';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
 
@@ -85,6 +86,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
           {state.data.Spots.map((spot, index) => <View key={`${spot.lat}:${spot.lon}:${index}`} style={ui.card}>
             <Text style={ui.eyebrow}>OPTION {index + 1}</Text>
             <Text style={[ui.label, { fontSize: 22 }]}>{spot.name?.trim() || `Unnamed ${category === 'Cafés' ? 'café' : category === 'Parks' ? 'park' : 'museum'}`}</Text>
+            <PlaceDetails properties={spot.properties} />
             <View style={{ flexDirection: 'row', gap: 24, flexWrap: 'wrap' }}>
               <View><Text style={ui.label}>{(spot.dist_1 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From your landmark</Text></View>
               <View><Text style={ui.label}>{(spot.dist_2 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From their landmark</Text></View>
