@@ -19,7 +19,7 @@ export default function DirectionsButton({ origin, destination, person }: {
     }
   }
   return <View style={{ gap: 8 }}>
-    <Pressable accessibilityRole="link" accessibilityLabel={`Directions from ${person} landmark in Google Maps`} style={ui.button} onPress={open}><Text style={ui.buttonText}>Directions from {person} landmark ↗</Text></Pressable>
+    <Pressable accessibilityRole="link" accessibilityLabel={`Directions from ${person} starting point in Google Maps`} style={ui.button} onPress={open}><Text style={ui.buttonText}>Directions from {person} starting point ↗</Text></Pressable>
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
   </View>;
 }
