@@ -318,3 +318,21 @@ class Token(Resource):
             'expires_at': api_token.expires_at.isoformat(),
             'revoked_at': api_token.revoked_at.isoformat() if api_token.revoked_at else None
         }, HTTPStatus.OK
+
+    @api.response(HTTPStatus.OK.value, 'Token status')
+    @api.response(HTTPStatus.UNAUTHORIZED.value, 'Invalid token')
+    def delete(self):
+        api_token = self.get_api_token()
+
+        if api_token.revoked_at:
+            return {'message': 'Token already revoked.'}, HTTPStatus.OK
+
+        now = datetime.now(timezone.utc)
+        api_token.revoked_at = now
+
+        sql_db.session.commit()
+
+        return {
+            'message': 'Token revoked successfully.',
+            'revoked_at': now.isoformat()
+        }, HTTPStatus.OK
