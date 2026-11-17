@@ -151,6 +151,8 @@ class Meet(Resource):
         'limit': 'Max results to return (default 50, max 500)',
         'sort': 'fair (shortest longer trip first, default) or closest '
                 '(closest to the midpoint first)',
+        'max_walk': 'Skip spots where either person walks more than this '
+                    'many minutes (optional)',
     })
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
@@ -168,11 +170,14 @@ class Meet(Resource):
             radius = float(request.args.get('radius',
                                             pqry.DEFAULT_RADIUS_M))
             limit = int(request.args.get('limit', pqry.DEFAULT_LIMIT))
+            max_walk = request.args.get('max_walk')
+            if max_walk is not None:
+                max_walk = float(max_walk)
         except KeyError:
             raise wz.BadRequest('lat1, lon1, lat2, and lon2 are required.')
         except ValueError:
-            raise wz.BadRequest('Coordinates, radius, and limit must be '
-                                'numbers.')
+            raise wz.BadRequest('Coordinates, radius, limit, and max_walk '
+                                'must be numbers.')
         category = request.args.get('category')
         place_type = request.args.get('type')
         if place_type and not category:
@@ -182,7 +187,8 @@ class Meet(Resource):
                 result = meet.find_spots(
                     (lat1, lon1), (lat2, lon2), radius=radius,
                     category=category, place_type=place_type, limit=limit,
-                    sort=request.args.get('sort', 'fair'))
+                    sort=request.args.get('sort', 'fair'),
+                    max_walk=max_walk)
         except ValueError as err:
             raise wz.BadRequest(str(err))
         return {'midpoint': result['midpoint'],
