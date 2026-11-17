@@ -276,3 +276,45 @@ class Token(Resource):
             'token_type': 'Bearer',
             'expires_at': expires.isoformat() + 'Z'
         }, HTTPStatus.CREATED
+
+    # helper function to get api token
+    # used for checking (GET) and revoking (DELETE) tokens
+    def get_api_token():
+        auth = request.headers.get('Authorization', '')
+
+        if not auth.startswith('Bearer '):
+            raise wz.Unauthorized('Bearer token required.')
+
+        token = auth.removeprefix('Bearer ').strip()
+
+        if not token:
+            raise wz.Unauthorized('Invalid token.')
+
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        api_token = ApiTokens.query.filter_by(token_hash=token_hash).first()
+
+        if not api_token:
+            raise wz.Unauthorized('Invalid token.')
+
+        return api_token
+
+    @api.response(HTTPStatus.OK.value, 'Token status')
+    @api.response(HTTPStatus.UNAUTHORIZED.value, 'Invalid token')
+    def get(self):
+        api_token = self.get_api_token()
+
+        now = datetime.now(timezone.utc)
+
+        if api_token.revoked_at:
+            status = 'revoked'
+        elif api_token.expires_at.replace(tzinfo=timezone.utc) <= now:
+            status = 'expired'
+        else:
+            status = 'active'
+
+        return {
+            'status': status,
+            'created_at': api_token.created_at.isoformat(),
+            'expires_at': api_token.expires_at.isoformat(),
+            'revoked_at': api_token.revoked_at.isoformat() if api_token.revoked_at else None
+        }, HTTPStatus.OK
