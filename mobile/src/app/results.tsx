@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { categories, getMeetingSpots, MeetingResponse, MeetingSort } from '../../api';
+import { categories, getMeetingSpots, MeetingResponse } from '../../api';
 import { colors, ui } from '../components/ui';
 import { parseLocation } from '../utils/startingLocation';
 import { findLandmark } from '../data/landmarks';
 import { placeDetails, walkingEstimate } from '../utils/placeDetails';
 import MeetingMap from '../components/MeetingMap';
 import DirectionsButton from '../components/DirectionsButton';
+import { useSearch } from '../state/SearchProvider';
 import PlaceDetails from '../components/PlaceDetails';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
@@ -24,7 +25,8 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
   const category = categories.find(value => value === params.category);
   const [view, setView] = useState<'list' | 'map'>('list');
   const [selected, setSelected] = useState(0);
-  const [sort, setSort] = useState<MeetingSort>('fair');
+  const { draft, setDraft } = useSearch();
+  const sort = draft.sort;
   const [radius, setRadius] = useState(5000);
   const [attempt, setAttempt] = useState(0);
   const [searchState, setState] = useState<SearchState>({ status: 'loading' });
@@ -64,7 +66,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
               onPress={() => {
                 if (sort === option.value) return;
                 setState({ status: 'loading' });
-                setSort(option.value);
+                setDraft(current => ({ ...current, sort: option.value }));
               }}>
               <Text style={[ui.buttonText, { color: sort === option.value ? '#FFFFFF' : colors.green }]}>{option.label}</Text>
             </Pressable>)}

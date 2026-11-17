@@ -28,3 +28,19 @@ be inside the backend's broad NYC service box (40.47–40.93 latitude,
 are sent directly to /meet; no geocoding or location permission is required.
 Landmark selection remains available. Older landmark-based result links still
 resolve. Web uses landmark selection because native map picking is unavailable.
+
+## Remember the last search
+
+Both starting points (including exact map coordinates), category, and sort
+preference are saved automatically on this device using AsyncStorage. The app
+restores them before showing the form, and serializes saves to keep rapid
+changes in order. Reset saved search replaces the saved settings with default
+landmarks, Cafés, and Fairest. Corrupt or unsupported records fall back to defaults;
+storage errors leave the current session usable. No results or tokens are stored.
+The stored search is local and unencrypted; it is not synced to other devices.
+
+Manual checks: choose two map points, cancel an edit to verify the old point
+stays selected, then search and change sort. Close and reopen the app to verify
+both points, category, and sort restore. Try Reset saved search and reopen again.
+The map's native gestures and persistence across app restarts need device or
+simulator validation in addition to automated checks.
