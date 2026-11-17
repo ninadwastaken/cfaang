@@ -18,3 +18,13 @@ Web retains the list and displays an explanatory message in Map mode. Native
 map tiles require connectivity. The app doesn't draw or calculate routes;
 directions still open externally. Map tiles and gestures need a device or
 simulator check; an Expo bundle export alone doesn't verify native rendering.
+
+## Choose starting points
+
+The home screen's Pick on map opens a native map for each person. Tap or drag
+the pin, then confirm; Cancel leaves the existing point unchanged. Points must
+be inside the backend's broad NYC service box (40.47–40.93 latitude,
+-74.27–-73.69 longitude). This box is not an exact borough boundary. Coordinates
+are sent directly to /meet; no geocoding or location permission is required.
+Landmark selection remains available. Older landmark-based result links still
+resolve. Web uses landmark selection because native map picking is unavailable.

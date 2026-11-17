@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { categories, getMeetingSpots, MeetingResponse, MeetingSort } from '../../api';
 import { colors, ui } from '../components/ui';
+import { parseLocation } from '../utils/startingLocation';
 import { findLandmark } from '../data/landmarks';
 import { placeDetails, walkingEstimate } from '../utils/placeDetails';
 import MeetingMap from '../components/MeetingMap';
@@ -18,8 +19,8 @@ export default function Results() {
 }
 
 function MeetingResults({ params }: { params: { from?: string; to?: string; category?: string } }) {
-  const person1 = findLandmark(params.from);
-  const person2 = findLandmark(params.to);
+  const person1 = useMemo(() => parseLocation(params.from) ?? findLandmark(params.from), [params.from]);
+  const person2 = useMemo(() => parseLocation(params.to) ?? findLandmark(params.to), [params.to]);
   const category = categories.find(value => value === params.category);
   const [view, setView] = useState<'list' | 'map'>('list');
   const [selected, setSelected] = useState(0);
@@ -28,7 +29,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
   const [attempt, setAttempt] = useState(0);
   const [searchState, setState] = useState<SearchState>({ status: 'loading' });
   const valid = !!person1 && !!person2 && !!category;
-  const state: SearchState = valid ? searchState : { status: 'error', message: 'Choose two landmarks and a category to find meeting spots.' };
+  const state: SearchState = valid ? searchState : { status: 'error', message: 'Choose two starting points and a category to find meeting spots.' };
   const searchedRadius = state.status === 'success' ? state.data.radius : radius;
   const nextRadius = Math.min(searchedRadius * 3, 10000);
   useEffect(() => {
@@ -106,15 +107,15 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
             <PlaceDetails properties={spot.properties} />
             <Text style={ui.label}>Rough walking estimates</Text>
             <View style={{ flexDirection: 'row', gap: 24, flexWrap: 'wrap' }}>
-              <View><Text style={ui.label}>{walkingEstimate(spot.walk_min_1)}</Text><Text style={ui.body}>{(spot.dist_1 / 1000).toFixed(1)} km straight-line</Text><Text style={ui.body}>From your landmark</Text></View>
-              <View><Text style={ui.label}>{walkingEstimate(spot.walk_min_2)}</Text><Text style={ui.body}>{(spot.dist_2 / 1000).toFixed(1)} km straight-line</Text><Text style={ui.body}>From their landmark</Text></View>
+              <View><Text style={ui.label}>{walkingEstimate(spot.walk_min_1)}</Text><Text style={ui.body}>{(spot.dist_1 / 1000).toFixed(1)} km straight-line</Text><Text style={ui.body}>From your starting point</Text></View>
+              <View><Text style={ui.label}>{walkingEstimate(spot.walk_min_2)}</Text><Text style={ui.body}>{(spot.dist_2 / 1000).toFixed(1)} km straight-line</Text><Text style={ui.body}>From their starting point</Text></View>
             </View>
             <View style={{ backgroundColor: '#E5EBDD', borderRadius: 12, padding: 12, gap: 4 }}>
               <Text style={ui.label}>Distance difference · {spot.gap.toLocaleString()} m</Text>
               <Text style={ui.body}>
                 {spot.gap === 0
-                  ? 'Equal distance from both landmarks, rounded to meters.'
-                  : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting landmark.`}
+                  ? 'Equal distance from both starting points, rounded to meters.'
+                  : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting point.`}
               </Text>
             </View>
             {person1 && <DirectionsButton origin={person1} destination={spot} person="your" />}
