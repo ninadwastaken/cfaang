@@ -122,7 +122,33 @@ def test_meet(mock_find):
     mock_find.assert_called_with((40.73, -73.99), (40.68, -73.97),
                                  radius=1000.0, category='amenity',
                                  place_type='cafe', limit=50,
-                                 sort='fair')
+                                 sort='fair', max_walk=None)
+
+
+@patch('places.meet.find_spots', return_value=FAKE_MEET)
+def test_meet_max_walk(mock_find):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': 20})
+    assert resp.status_code == OK
+    assert mock_find.call_args.kwargs['max_walk'] == 20.0
+
+
+def test_meet_bad_max_walk():
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': 'forever'})
+    assert resp.status_code == BAD_REQUEST
+
+
+@patch('places.query.get_db')
+def test_meet_negative_max_walk(mock_db):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': -10})
+    assert resp.status_code == BAD_REQUEST
+    assert 'max_walk' in resp.get_json()['message']
+    mock_db.assert_not_called()
 
 
 def test_meet_missing_person():
