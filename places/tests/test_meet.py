@@ -349,13 +349,38 @@ def test_find_spots_max_walk_none_keeps_all():
 
 def test_find_spots_max_walk_widens_when_too_few():
     # 5 places come back, but only 1 is a short enough walk,
-    # so it should keep widening.
+    # so it should keep widening, but only as far as anyone can walk.
     middle = [fake_place('Middle', 40.7067, -73.9863)]
     far = [fake_place(f'Far {n}', 40.73, -73.997) for n in range(4)]
     with patch('places.query.get_places_near',
                return_value=middle + far) as near:
-        meet.find_spots(WSP, BARCLAYS, radius=1000, max_walk=60)
-    assert near.call_count == 5
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000, max_walk=60)
+    # 1000, 2000, then capped at the walk reach.
+    assert near.call_count == 3
+    assert result['radius'] == pytest.approx(meet.walk_reach_m(60))
+
+
+def test_walk_reach_m_matches_walk_minutes():
+    # A spot right at the reach still rounds to max_walk minutes.
+    assert meet.walk_minutes(meet.walk_reach_m(20) - 1) == 20
+    assert meet.walk_minutes(meet.walk_reach_m(20) + 1) == 21
+
+
+def test_find_spots_max_walk_caps_search_radius():
+    with patch('places.query.get_places_near', return_value=[]) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000, max_walk=50)
+    reach = meet.walk_reach_m(50)
+    assert result['radius'] == pytest.approx(reach)
+    for call in near.call_args_list:
+        assert call.kwargs['radius'] <= reach
+
+
+def test_find_spots_max_walk_caps_starting_radius():
+    with patch('places.query.get_places_near', return_value=[]) as near:
+        meet.find_spots(WSP, BARCLAYS, radius=5000, max_walk=50)
+    assert near.call_count == 1
+    assert near.call_args.kwargs['radius'] == pytest.approx(
+        meet.walk_reach_m(50))
 
 
 @pytest.mark.parametrize('max_walk', [0, -5, float('nan')])

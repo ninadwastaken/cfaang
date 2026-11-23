@@ -57,6 +57,15 @@ def walk_minutes(dist_m):
     return round(dist_m * STREET_FACTOR / WALK_M_PER_MIN)
 
 
+def walk_reach_m(max_walk):
+    """
+    Farthest straight-line distance in meters someone can be from a spot
+    and still pass a max_walk limit. walk_minutes rounds, so a walk that
+    comes out to max_walk + 0.5 minutes still counts.
+    """
+    return (max_walk + 0.5) * WALK_M_PER_MIN / STREET_FACTOR
+
+
 def fairness_gap(spot):
     """
     How much farther one person goes than the other, in meters.
@@ -65,10 +74,11 @@ def fairness_gap(spot):
     return abs(spot['dist_1'] - spot['dist_2'])
 
 
-def search_widening(mid, radius, category, place_type, limit, count=len):
+def search_widening(mid, radius, category, place_type, limit, count=len,
+                    max_radius=pqry.MAX_RADIUS_M):
     """
     Search around the midpoint. If fewer than MIN_SPOTS come back,
-    double the radius and try again, up to MAX_RADIUS_M.
+    double the radius and try again, up to max_radius.
     count says how many usable spots a list of places has. By default
     that's every place, but find_spots passes one that skips duplicates.
     Stops early if a search fills the limit, since $nearSphere returns
@@ -76,16 +86,17 @@ def search_widening(mid, radius, category, place_type, limit, count=len):
     same ones.
     Returns the places and the radius that was actually used.
     """
-    radius = min(radius, pqry.MAX_RADIUS_M)
+    max_radius = min(max_radius, pqry.MAX_RADIUS_M)
+    radius = min(radius, max_radius)
     limit = pqry.cap_limit(limit)
     while True:
         places = pqry.get_places_near(mid[0], mid[1], radius=radius,
                                       category=category,
                                       place_type=place_type, limit=limit)
         if (count(places) >= MIN_SPOTS or len(places) >= limit
-                or radius >= pqry.MAX_RADIUS_M):
+                or radius >= max_radius):
             return places, radius
-        radius = min(radius * WIDEN_FACTOR, pqry.MAX_RADIUS_M)
+        radius = min(radius * WIDEN_FACTOR, max_radius)
 
 
 def street_address(spot):
@@ -222,6 +233,7 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     max_walk drops spots where either person walks more than that
     many minutes.
     If there are only a few unique spots nearby, the search widens.
+    With max_walk set, it never widens past what anyone could walk.
     Rank up to MAX_LIMIT candidates, deduplicate, then apply the result limit.
     """
     if sort not in SORTS:
@@ -243,9 +255,16 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
         sort_spots(spots, sort)
         return len(drop_duplicates(spots))
 
+    # A spot both people can walk to is at most walk_reach_m from each
+    # of them, so it's at most that far from the midpoint too. Searching
+    # wider than that only brings back spots within_walk throws out.
+    max_radius = pqry.MAX_RADIUS_M
+    if max_walk is not None:
+        max_radius = walk_reach_m(max_walk)
     places, radius_used = search_widening(mid, radius, category,
                                           place_type, pqry.MAX_LIMIT,
-                                          count=unique_count)
+                                          count=unique_count,
+                                          max_radius=max_radius)
     spots = build_spots(places, person_1, person_2, mid)
     spots = within_walk(spots, max_walk)
     sort_spots(spots, sort)
