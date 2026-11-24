@@ -9,6 +9,8 @@ import secrets
 from datetime import datetime, timezone, timedelta
 
 from argon2.exceptions import VerificationError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from contextlib import contextmanager
 from http import HTTPStatus
@@ -29,6 +31,16 @@ import security.security as sec
 import places.meet as meet
 
 app = Flask(__name__)
+
+# rate limiting settings
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri="memory://",
+    headers_enabled=True
+)
+
+limiter.init_app(app)
 
 init_db(app)
 CORS(app)
@@ -130,6 +142,7 @@ class Places(Resource):
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
     @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Database unavailable')
+    @limiter.limit("30 per minute")
     def get(self):
         """
         Return NYC places, like /places?category=leisure&type=park.
@@ -179,12 +192,13 @@ class Meet(Resource):
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
     @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Database unavailable')
+    @limiter.limit("30 per minute")
     def get(self):
         """
         Return spots near the midpoint of two people, like
         /meet?lat1=40.73&lon1=-73.99&lat2=40.68&lon2=-73.97&type=cafe.
         """
-        # check if user is authorized to read places
+        # check if user is authorized to read meet
         if not sec.is_permitted(sec.MEET, sec.READ, request.headers.get('Authorization', '')):
             raise wz.Forbidden('Not authorized')
 
@@ -230,8 +244,10 @@ class Health(Resource):
         """
         return {HEALTH_RESP: 'ok'}
 
+# user management endpoints
+
 # authentication endpoints
-@api.route('/auth/token')
+@api.route(TOKEN_EP)
 class Token(Resource):
     """
     Authenticate users and manage API tokens.
@@ -239,6 +255,7 @@ class Token(Resource):
     @api.response(HTTPStatus.CREATED.value, 'Token created')
     @api.response(HTTPStatus.UNAUTHORIZED.value, 'Invalid credentials')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Invalid request')
+    @limiter.limit("5 per minute; 20 per hour")
     def post(self):
         # authenticate a user and create an api token
         username = request.args.get('username')
@@ -300,6 +317,7 @@ class Token(Resource):
 
     @api.response(HTTPStatus.OK.value, 'Token status')
     @api.response(HTTPStatus.UNAUTHORIZED.value, 'Invalid token')
+    @limiter.limit("30 per minute")
     def get(self):
         api_token = self.get_api_token()
 
@@ -321,6 +339,7 @@ class Token(Resource):
 
     @api.response(HTTPStatus.OK.value, 'Token status')
     @api.response(HTTPStatus.UNAUTHORIZED.value, 'Invalid token')
+    @limiter.limit("5 per minute; 20 per hour")
     def delete(self):
         api_token = self.get_api_token()
 
