@@ -28,13 +28,12 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
   const [selected, setSelected] = useState(0);
   const { draft, setDraft } = useSearch();
   const sort = draft.sort;
-  const [radius, setRadius] = useState(5000);
+  const radius = 5000;
   const [attempt, setAttempt] = useState(0);
   const [searchState, setState] = useState<SearchState>({ status: 'loading' });
   const valid = !!person1 && !!person2 && !!category;
   const state: SearchState = valid ? searchState : { status: 'error', message: 'Choose two starting points and a category to find meeting spots.' };
   const searchedRadius = state.status === 'success' ? state.data.radius : radius;
-  const nextRadius = Math.min(searchedRadius * 3, 10000);
   useEffect(() => {
     if (!person1 || !person2 || !category) {
       return;
@@ -97,8 +96,8 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
 
           {state.data.Spots.length === 0 && <View style={ui.card}>
             <Text style={ui.label}>No places found nearby</Text>
-            <Text style={ui.body}>{searchedRadius < 10000 ? 'Try another category or expand the search around your midpoint.' : 'Try another category or change your starting locations.'}</Text>
-            {searchedRadius < 10000 && <Pressable accessibilityRole="button" style={ui.button} onPress={() => { setState({ status: 'loading' }); setRadius(nextRadius); }}><Text style={ui.buttonText}>Search within {nextRadius / 1000} km</Text></Pressable>}
+            <Text style={ui.body}>Try another category or choose starting points closer together. The search has already expanded automatically where possible.</Text>
+            <Pressable accessibilityRole="button" style={ui.button} onPress={edit}><Text style={ui.buttonText}>Change category or starting points</Text></Pressable>
           </View>}
           {state.data.Spots.map((spot, index) => {
             if (view === 'map' && index !== Math.min(selected, state.data.Spots.length - 1)) return null;
