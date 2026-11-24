@@ -10,6 +10,7 @@ import { placeDetails, walkingEstimate } from '../utils/placeDetails';
 import MeetingMap from '../components/MeetingMap';
 import DirectionsButton from '../components/DirectionsButton';
 import { useSearch } from '../state/SearchProvider';
+import SharePlaceButton from '../components/SharePlaceButton';
 import PlaceDetails from '../components/PlaceDetails';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
@@ -120,6 +121,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
                   : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting point.`}
               </Text>
             </View>
+            <SharePlaceButton spot={spot} />
             {person1 && <DirectionsButton origin={person1} destination={spot} person="your" />}
             {person2 && <DirectionsButton origin={person2} destination={spot} person="their" />}
           </View>; })}
