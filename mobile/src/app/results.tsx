@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { categories, getMeetingSpots, MeetingResponse } from '../../api';
+import { categories, categoryPlaceNames, getMeetingSpots, MeetingResponse } from '../../api';
 import { colors, ui } from '../components/ui';
 import { parseLocation } from '../utils/startingLocation';
 import { findLandmark } from '../data/landmarks';
@@ -10,6 +10,7 @@ import { placeDetails, walkingEstimate } from '../utils/placeDetails';
 import MeetingMap from '../components/MeetingMap';
 import DirectionsButton from '../components/DirectionsButton';
 import { useSearch } from '../state/SearchProvider';
+import SharePlaceButton from '../components/SharePlaceButton';
 import PlaceDetails from '../components/PlaceDetails';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
@@ -104,7 +105,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
             const details = placeDetails(spot.properties);
             return <View key={`${spot.lat}:${spot.lon}:${index}`} style={ui.card}>
             <Text style={ui.eyebrow}>OPTION {index + 1}</Text>
-            <Text style={[ui.label, { fontSize: 22 }]}>{spot.name?.trim() || `Unnamed ${category === 'Cafés' ? 'café' : category === 'Parks' ? 'park' : 'museum'}`}</Text>
+            <Text style={[ui.label, { fontSize: 22 }]}>{spot.name?.trim() || `Unnamed ${category ? categoryPlaceNames[category] : 'place'}`}</Text>
             <Text style={[ui.body, { textTransform: 'capitalize' }]}>{details.category}</Text>
             <PlaceDetails properties={spot.properties} />
             <Text style={ui.label}>Rough walking estimates</Text>
@@ -120,6 +121,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
                   : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting point.`}
               </Text>
             </View>
+            <SharePlaceButton spot={spot} />
             {person1 && <DirectionsButton origin={person1} destination={spot} person="your" />}
             {person2 && <DirectionsButton origin={person2} destination={spot} person="their" />}
           </View>; })}
