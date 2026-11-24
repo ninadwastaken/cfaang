@@ -35,7 +35,7 @@ def test_find_spots_searches_midpoint():
     # Nothing found, so it widens all the way to the max radius.
     near.assert_called_with(mid[0], mid[1], radius=10000,
                             category='amenity', place_type='cafe',
-                            limit=50)
+                            limit=500)
     assert result['midpoint'] == {'lat': mid[0], 'lon': mid[1]}
     assert result['spots'] == []
 
@@ -57,6 +57,20 @@ def test_find_spots_adds_distances_and_sorts():
 def test_fairness_gap():
     assert meet.fairness_gap({'dist_1': 1200, 'dist_2': 800}) == 400
     assert meet.fairness_gap({'dist_1': 500, 'dist_2': 500}) == 0
+
+
+def test_walk_minutes():
+    assert meet.walk_minutes(0) == 0
+    # 800 m straight line is about 1040 m of streets, so 13 minutes.
+    assert meet.walk_minutes(800) == 13
+
+
+def test_find_spots_adds_walk_minutes():
+    spot = fake_place('Middle', 40.7067, -73.9863)
+    with patch('places.query.get_places_near', return_value=[spot]):
+        found = meet.find_spots(WSP, BARCLAYS)['spots'][0]
+    assert found['walk_min_1'] == meet.walk_minutes(found['dist_1'])
+    assert found['walk_min_2'] == meet.walk_minutes(found['dist_2'])
 
 
 def test_find_spots_fair_sort():
@@ -83,6 +97,61 @@ def test_find_spots_fair_sort_prefers_near_over_far_even():
     assert spots[0]['gap'] > spots[-1]['gap']
 
 
+def limited_candidates(places):
+    """Model Mongo's nearest-first cursor respecting the retrieval limit."""
+    def search(*args, limit, **kwargs):
+        return places[:max(1, min(limit, 500))]
+    return search
+
+
+def test_result_limit_applies_after_fair_ranking():
+    # The north spot is closer to the midpoint, but farther from the
+    # southern person. The east spot gives the shorter longest trip.
+    candidates = [fake_place('North', 40.705, -74),
+                  fake_place('East', 40.7, -73.99)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        result = meet.find_spots((40.68, -74), (40.72, -74), limit=1)
+    assert [spot['name'] for spot in result['spots']] == ['East']
+
+
+@pytest.mark.parametrize('sort', ['fair', 'closest'])
+def test_result_limit_applies_after_deduplication(sort):
+    candidates = [fake_place('Park', 40.7, -74),
+                  fake_place('Park', 40.7001, -74, osm_type='way'),
+                  fake_place('Cafe', 40.701, -74)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        result = meet.find_spots((40.68, -74), (40.72, -74),
+                                 limit=2, sort=sort)
+    assert [spot['name'] for spot in result['spots']] == ['Park', 'Cafe']
+
+
+@pytest.mark.parametrize('sort', ['fair', 'closest'])
+def test_result_limit_does_not_change_search_radius_or_ranking(sort):
+    candidates = [fake_place(f'Place {n}', 40.7 + n * 0.001, -74)
+                  for n in range(5)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        small = meet.find_spots((40.68, -74), (40.72, -74),
+                                limit=1, sort=sort)
+        large = meet.find_spots((40.68, -74), (40.72, -74),
+                                limit=5, sort=sort)
+    assert small['radius'] == large['radius'] == 1000
+    assert small['spots'] == large['spots'][:1]
+
+
+@pytest.mark.parametrize('limit, expected', [
+    (-1, 1), (0, 1), (2, 2), (99999, 500),
+])
+def test_result_limit_is_clamped(limit, expected):
+    candidates = [fake_place(f'Place {n}', 40.7, -74) for n in range(501)]
+    with patch('places.query.get_places_near',
+               side_effect=limited_candidates(candidates)):
+        result = meet.find_spots(WSP, BARCLAYS, limit=limit)
+    assert len(result['spots']) == expected
+
+
 def test_find_spots_widens_when_few_results():
     one = [fake_place('Only one', 40.7067, -73.9863)]
     with patch('places.query.get_places_near', return_value=one) as near:
@@ -98,6 +167,46 @@ def test_find_spots_no_widen_when_enough():
         result = meet.find_spots(WSP, BARCLAYS, radius=1000)
     assert near.call_count == 1
     assert result['radius'] == 1000
+
+
+def test_find_spots_no_widen_when_candidate_pool_full():
+    # 500 candidates fill the retrieval pool, even if duplicates leave
+    # only four spots. Widening would return the same closest candidates.
+    park_point = fake_place('Park', 40.7067, -73.9863)
+    park_area = fake_place('Park', 40.7067, -73.9863, osm_type='way')
+    others = [fake_place(f'Spot {n}', 40.7067, -73.9863) for n in range(3)]
+    candidates = [park_point] + [park_area] * 496 + others
+    with patch('places.query.get_places_near',
+               return_value=candidates) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000, limit=5)
+    assert near.call_count == 1
+    assert result['radius'] == 1000
+    assert len(result['spots']) == 4
+
+
+def test_find_spots_limit_over_max_still_widens():
+    # limit=1000 gets capped to 500, so 3 places is not a full search.
+    three = [fake_place(f'Spot {n}', 40.7067, -73.9863) for n in range(3)]
+    with patch('places.query.get_places_near', return_value=three) as near:
+        meet.find_spots(WSP, BARCLAYS, radius=1000, limit=1000)
+    assert near.call_count == 5
+
+
+def test_find_spots_widens_when_duplicates_leave_too_few():
+    # 5 places come back, but one park is listed twice, so there are
+    # only 4 real spots. It should widen instead of stopping.
+    park_point = fake_place('Fort Greene Park', 40.6913, -73.9754)
+    park_area = fake_place('Fort Greene Park', 40.6917, -73.9752,
+                           osm_type='way')
+    others = [fake_place(f'Spot {n}', 40.7067, -73.9863) for n in range(3)]
+    more = [fake_place(f'More {n}', 40.7067, -73.9863) for n in range(2)]
+    first = [park_point, park_area] + others
+    with patch('places.query.get_places_near',
+               side_effect=[first, first + more]) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000)
+    assert near.call_count == 2
+    assert result['radius'] == 2000
+    assert len(result['spots']) == 6
 
 
 def test_find_spots_bad_sort():
@@ -215,3 +324,84 @@ def test_find_spots_outside_nyc_skips_db():
         with pytest.raises(ValueError, match='person 2 is outside NYC'):
             meet.find_spots(WSP, chicago)
     near.assert_not_called()
+
+
+def test_find_spots_max_walk_drops_long_walks():
+    # Middle is about 46 minutes from each person. Near WSP is a
+    # short walk for person 1 but over an hour for person 2.
+    middle = fake_place('Middle', 40.7067, -73.9863)
+    near_wsp = fake_place('Near WSP', 40.73, -73.997)
+    with patch('places.query.get_places_near',
+               return_value=[middle, near_wsp]):
+        spots = meet.find_spots(WSP, BARCLAYS, max_walk=60)['spots']
+    assert [s['name'] for s in spots] == ['Middle']
+    assert all(max(s['walk_min_1'], s['walk_min_2']) <= 60 for s in spots)
+
+
+def test_find_spots_max_walk_none_keeps_all():
+    middle = fake_place('Middle', 40.7067, -73.9863)
+    near_wsp = fake_place('Near WSP', 40.73, -73.997)
+    with patch('places.query.get_places_near',
+               return_value=[middle, near_wsp]):
+        spots = meet.find_spots(WSP, BARCLAYS)['spots']
+    assert len(spots) == 2
+
+
+def test_find_spots_max_walk_widens_when_too_few():
+    # 5 places come back, but only 1 is a short enough walk,
+    # so it should keep widening, but only as far as anyone can walk.
+    middle = [fake_place('Middle', 40.7067, -73.9863)]
+    far = [fake_place(f'Far {n}', 40.73, -73.997) for n in range(4)]
+    with patch('places.query.get_places_near',
+               return_value=middle + far) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000, max_walk=60)
+    # 1000, 2000, then capped at the walk reach.
+    assert near.call_count == 3
+    assert result['radius'] == pytest.approx(meet.walk_reach_m(60))
+
+
+def test_walk_reach_m_matches_walk_minutes():
+    # A spot right at the reach still rounds to max_walk minutes.
+    assert meet.walk_minutes(meet.walk_reach_m(20) - 1) == 20
+    assert meet.walk_minutes(meet.walk_reach_m(20) + 1) == 21
+
+
+def test_find_spots_max_walk_caps_search_radius():
+    with patch('places.query.get_places_near', return_value=[]) as near:
+        result = meet.find_spots(WSP, BARCLAYS, radius=1000, max_walk=50)
+    reach = meet.walk_reach_m(50)
+    assert result['radius'] == pytest.approx(reach)
+    for call in near.call_args_list:
+        assert call.kwargs['radius'] <= reach
+
+
+def test_find_spots_max_walk_caps_starting_radius():
+    with patch('places.query.get_places_near', return_value=[]) as near:
+        meet.find_spots(WSP, BARCLAYS, radius=5000, max_walk=50)
+    assert near.call_count == 1
+    assert near.call_args.kwargs['radius'] == pytest.approx(
+        meet.walk_reach_m(50))
+
+
+@pytest.mark.parametrize('max_walk', [0, -5, float('nan')])
+def test_find_spots_bad_max_walk(max_walk):
+    with patch('places.query.get_places_near') as near:
+        with pytest.raises(ValueError, match='max_walk'):
+            meet.find_spots(WSP, BARCLAYS, max_walk=max_walk)
+    near.assert_not_called()
+
+
+def test_find_spots_too_far_apart_for_max_walk():
+    # WSP to Barclays is about 5.6 km. 15 minutes each way covers
+    # under 2 km, so no spot can work.
+    with patch('places.query.get_places_near') as near:
+        with pytest.raises(ValueError, match='too far apart'):
+            meet.find_spots(WSP, BARCLAYS, max_walk=15)
+    near.assert_not_called()
+
+
+def test_find_spots_close_enough_for_max_walk():
+    # 60 minutes each way is plenty for WSP to Barclays.
+    with patch('places.query.get_places_near', return_value=[]) as near:
+        meet.find_spots(WSP, BARCLAYS, max_walk=60)
+    near.assert_called()

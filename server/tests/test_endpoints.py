@@ -40,6 +40,39 @@ def test_health():
     assert resp_json[ep.HEALTH_RESP] == 'ok'
 
 
+@patch('data.db_connect.connect_db')
+def test_ready_when_mongo_responds(mock_connect):
+    mock_connect.return_value.admin.command.return_value = {'ok': 1}
+    response = TEST_CLIENT.get('/ready')
+    assert response.status_code == OK
+    assert response.get_json() == {'status': 'ok'}
+    mock_connect.return_value.admin.command.assert_called_once_with('ping')
+
+
+@pytest.mark.parametrize('error_type', [
+    ep.pm.errors.ServerSelectionTimeoutError,
+    ep.pm.errors.ConnectionFailure,
+    ep.pm.errors.OperationFailure,
+])
+@patch('data.db_connect.connect_db')
+def test_ready_when_mongo_unavailable(mock_connect, error_type):
+    mock_connect.return_value.admin.command.side_effect = error_type(
+        'private database details')
+    response = TEST_CLIENT.get('/ready')
+    assert response.status_code == SERVICE_UNAVAILABLE
+    assert response.get_json()['message'] == ep.DATABASE_UNAVAILABLE
+    assert b'private database details' not in response.data
+
+
+@patch('data.db_connect.connect_db', side_effect=AssertionError(
+    'Liveness must not connect to MongoDB'))
+def test_health_does_not_require_mongo(mock_connect):
+    response = TEST_CLIENT.get('/health')
+    assert response.status_code == OK
+    assert response.get_json() == {'status': 'ok'}
+    mock_connect.assert_not_called()
+
+
 FAKE_PLACES = [{'osm_id': 1, 'properties': {'amenity': 'cafe'}}]
 
 
@@ -89,7 +122,43 @@ def test_meet(mock_find):
     mock_find.assert_called_with((40.73, -73.99), (40.68, -73.97),
                                  radius=1000.0, category='amenity',
                                  place_type='cafe', limit=50,
-                                 sort='fair')
+                                 sort='fair', max_walk=None)
+
+
+@patch('places.meet.find_spots', return_value=FAKE_MEET)
+def test_meet_max_walk(mock_find):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': 20})
+    assert resp.status_code == OK
+    assert mock_find.call_args.kwargs['max_walk'] == 20.0
+
+
+def test_meet_bad_max_walk():
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': 'forever'})
+    assert resp.status_code == BAD_REQUEST
+
+
+@patch('places.query.get_db')
+def test_meet_negative_max_walk(mock_db):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': -10})
+    assert resp.status_code == BAD_REQUEST
+    assert 'max_walk' in resp.get_json()['message']
+    mock_db.assert_not_called()
+
+
+@patch('places.query.get_db')
+def test_meet_too_far_apart_for_max_walk(mock_db):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': 10})
+    assert resp.status_code == BAD_REQUEST
+    assert 'too far apart' in resp.get_json()['message']
+    mock_db.assert_not_called()
 
 
 def test_meet_missing_person():

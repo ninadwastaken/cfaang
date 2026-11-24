@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { categories, getMeetingSpots, MeetingResponse, MeetingSort } from '../../api';
+import { categories, categoryPlaceNames, getMeetingSpots, MeetingResponse } from '../../api';
 import { colors, ui } from '../components/ui';
+import { parseLocation } from '../utils/startingLocation';
 import { findLandmark } from '../data/landmarks';
+import { placeDetails, walkingEstimate } from '../utils/placeDetails';
+import MeetingMap from '../components/MeetingMap';
 import DirectionsButton from '../components/DirectionsButton';
+import { useSearch } from '../state/SearchProvider';
+import SharePlaceButton from '../components/SharePlaceButton';
+import PlaceDetails from '../components/PlaceDetails';
 
 type SearchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'success'; data: MeetingResponse };
 
@@ -15,17 +21,19 @@ export default function Results() {
 }
 
 function MeetingResults({ params }: { params: { from?: string; to?: string; category?: string } }) {
-  const person1 = findLandmark(params.from);
-  const person2 = findLandmark(params.to);
+  const person1 = useMemo(() => parseLocation(params.from) ?? findLandmark(params.from), [params.from]);
+  const person2 = useMemo(() => parseLocation(params.to) ?? findLandmark(params.to), [params.to]);
   const category = categories.find(value => value === params.category);
-  const [sort, setSort] = useState<MeetingSort>('fair');
-  const [radius, setRadius] = useState(5000);
+  const [view, setView] = useState<'list' | 'map'>('list');
+  const [selected, setSelected] = useState(0);
+  const { draft, setDraft } = useSearch();
+  const sort = draft.sort;
+  const radius = 5000;
   const [attempt, setAttempt] = useState(0);
   const [searchState, setState] = useState<SearchState>({ status: 'loading' });
   const valid = !!person1 && !!person2 && !!category;
-  const state: SearchState = valid ? searchState : { status: 'error', message: 'Choose two landmarks and a category to find meeting spots.' };
+  const state: SearchState = valid ? searchState : { status: 'error', message: 'Choose two starting points and a category to find meeting spots.' };
   const searchedRadius = state.status === 'success' ? state.data.radius : radius;
-  const nextRadius = Math.min(searchedRadius * 3, 10000);
   useEffect(() => {
     if (!person1 || !person2 || !category) {
       return;
@@ -47,7 +55,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
       <Text style={ui.eyebrow}>MEETING SPOTS{category ? ` · ${category.toUpperCase()}` : ''}</Text>
       <Text style={ui.title}>Make time{'\n'}to meet.</Text>
       {valid && <Text style={ui.body}>{person1.name} ↔ {person2.name}</Text>}
-      <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances and differences are straight-line estimates, not walking or transit times. Place details may be incomplete or outdated.</Text></View>
+      <View style={ui.notice}><Text style={ui.noticeText}>Places near your geographic midpoint. Distances and differences measure straight lines. Rough walking times use a simple distance formula, not actual routes or transit schedules. Place details may be incomplete or outdated.</Text></View>
       {valid && <Text style={ui.body}>{state.status === 'success' ? 'Searched' : 'Starting search'} within {searchedRadius / 1000} km of your midpoint.</Text>}
       {valid && <View style={{ gap: 10 }}>
         <Text style={ui.label}>Sort recommendations</Text>
@@ -58,7 +66,7 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
               onPress={() => {
                 if (sort === option.value) return;
                 setState({ status: 'loading' });
-                setSort(option.value);
+                setDraft(current => ({ ...current, sort: option.value }));
               }}>
               <Text style={[ui.buttonText, { color: sort === option.value ? '#FFFFFF' : colors.green }]}>{option.label}</Text>
             </Pressable>)}
@@ -77,28 +85,45 @@ function MeetingResults({ params }: { params: { from?: string; to?: string; cate
         </View>}
         {state.status === 'success' && <>
           <Text style={ui.label}>{state.data.count} {state.data.count === 1 ? 'place' : 'places'} found</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['list', 'map'] as const).map(mode => <Pressable key={mode} accessibilityRole="button" accessibilityState={{ selected: view === mode }}
+              style={[ui.button, { flex: 1, backgroundColor: view === mode ? colors.green : '#E5EBDD' }]}
+              onPress={() => { setView(mode); setSelected(0); }}>
+              <Text style={[ui.buttonText, { color: view === mode ? '#FFFFFF' : colors.green }]}>{mode === 'list' ? 'List' : 'Map'}</Text>
+            </Pressable>)}
+          </View>
+          {view === 'map' && person1 && person2 && <MeetingMap person1={person1} person2={person2} data={state.data} selected={Math.min(selected, Math.max(state.data.Spots.length - 1, 0))} onSelect={setSelected} />}
+
           {state.data.Spots.length === 0 && <View style={ui.card}>
             <Text style={ui.label}>No places found nearby</Text>
-            <Text style={ui.body}>{searchedRadius < 10000 ? 'Try another category or expand the search around your midpoint.' : 'Try another category or change your starting locations.'}</Text>
-            {searchedRadius < 10000 && <Pressable accessibilityRole="button" style={ui.button} onPress={() => { setState({ status: 'loading' }); setRadius(nextRadius); }}><Text style={ui.buttonText}>Search within {nextRadius / 1000} km</Text></Pressable>}
+            <Text style={ui.body}>Try another category or choose starting points closer together. The search has already expanded automatically where possible.</Text>
+            <Pressable accessibilityRole="button" style={ui.button} onPress={edit}><Text style={ui.buttonText}>Change category or starting points</Text></Pressable>
           </View>}
-          {state.data.Spots.map((spot, index) => <View key={`${spot.lat}:${spot.lon}:${index}`} style={ui.card}>
+          {state.data.Spots.map((spot, index) => {
+            if (view === 'map' && index !== Math.min(selected, state.data.Spots.length - 1)) return null;
+            const details = placeDetails(spot.properties);
+            return <View key={`${spot.lat}:${spot.lon}:${index}`} style={ui.card}>
             <Text style={ui.eyebrow}>OPTION {index + 1}</Text>
-            <Text style={[ui.label, { fontSize: 22 }]}>{spot.name?.trim() || `Unnamed ${category === 'Cafés' ? 'café' : category === 'Parks' ? 'park' : 'museum'}`}</Text>
+            <Text style={[ui.label, { fontSize: 22 }]}>{spot.name?.trim() || `Unnamed ${category ? categoryPlaceNames[category] : 'place'}`}</Text>
+            <Text style={[ui.body, { textTransform: 'capitalize' }]}>{details.category}</Text>
+            <PlaceDetails properties={spot.properties} />
+            <Text style={ui.label}>Rough walking estimates</Text>
             <View style={{ flexDirection: 'row', gap: 24, flexWrap: 'wrap' }}>
-              <View><Text style={ui.label}>{(spot.dist_1 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From your landmark</Text></View>
-              <View><Text style={ui.label}>{(spot.dist_2 / 1000).toFixed(1)} km</Text><Text style={ui.body}>From their landmark</Text></View>
+              <View><Text style={ui.label}>{walkingEstimate(spot.walk_min_1)}</Text><Text style={ui.body}>{(spot.dist_1 / 1000).toFixed(1)} km straight-line</Text><Text style={ui.body}>From your starting point</Text></View>
+              <View><Text style={ui.label}>{walkingEstimate(spot.walk_min_2)}</Text><Text style={ui.body}>{(spot.dist_2 / 1000).toFixed(1)} km straight-line</Text><Text style={ui.body}>From their starting point</Text></View>
             </View>
             <View style={{ backgroundColor: '#E5EBDD', borderRadius: 12, padding: 12, gap: 4 }}>
               <Text style={ui.label}>Distance difference · {spot.gap.toLocaleString()} m</Text>
               <Text style={ui.body}>
                 {spot.gap === 0
-                  ? 'Equal distance from both landmarks, rounded to meters.'
-                  : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting landmark.`}
+                  ? 'Equal distance from both starting points, rounded to meters.'
+                  : `Farther from ${spot.dist_1 > spot.dist_2 ? 'your' : 'their'} starting point.`}
               </Text>
             </View>
-            {person1 && <DirectionsButton origin={person1} destination={spot} />}
-          </View>)}
+            <SharePlaceButton spot={spot} />
+            {person1 && <DirectionsButton origin={person1} destination={spot} person="your" />}
+            {person2 && <DirectionsButton origin={person2} destination={spot} person="their" />}
+          </View>; })}
         </>}
       </View>
       <Pressable accessibilityRole="button" style={ui.button} onPress={edit}><Text style={ui.buttonText}>Edit starting locations</Text></Pressable>

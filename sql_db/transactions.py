@@ -36,3 +36,24 @@ def get_user_permissions(uid, epid):
         GroupUsers.uid == uid,
         Permissions.epid == epid
     ).scalar()
+
+@requires_db
+def create_new_user(username, password):
+    # create the new user
+    new_user = Users(username=username, password=password)
+
+    sql_db.session.add(new_user)
+    sql_db.session.flush()
+
+    # add the new user to the default permissions group
+    default = Groups.query.filter_by(group_name="default").first()
+
+    if not default:
+        raise Exception("Could not find default group")
+    
+    default_new_user = GroupUsers(gid=default.gid, uid=new_user.uid)
+
+    sql_db.session.add(default_new_user)
+    sql_db.session.commit()
+
+    return new_user

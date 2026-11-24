@@ -12,9 +12,9 @@ def seed_users():
 
 def seed_groups():
     # create normal user group
-    if not Groups.query.filter_by(group_name="user").first():
-        user = Groups(group_name="user")
-        sql_db.session.add(user)
+    if not Groups.query.filter_by(group_name="default").first():
+        default = Groups(group_name="default")
+        sql_db.session.add(default)
 
     # create admin group
     if not Groups.query.filter_by(group_name="admin").first():
@@ -53,10 +53,10 @@ def seed_permissions():
     if not token:
         raise Exception("Endpoint '/token' does not exist.")
 
-    if not Permissions.query.filter_by(permission_name='token-user').first():
+    if not Permissions.query.filter_by(permission_name='token-default').first():
         token_user = Permissions(
             epid=token.epid,
-            permission_name="token-user",
+            permission_name="token-default",
             mask=0b1101
         )
         sql_db.session.add(token_user)
@@ -64,19 +64,19 @@ def seed_permissions():
 def seed_group_users():
     # associate dev to user and admin
     dev = Users.query.filter_by(username="dev").first()
-    user = Groups.query.filter_by(group_name="user").first()
+    default = Groups.query.filter_by(group_name="default").first()
     admin = Groups.query.filter_by(group_name="admin").first()
 
     if not dev:
         raise Exception("Could not find dev user")
-    elif not user:
-        raise Exception("Could not find user group")
+    elif not default:
+        raise Exception("Could not find default group")
     elif not admin:
         raise Exception("Could not find admin group")
 
-    if not GroupUsers.query.filter_by(gid=user.gid, uid=dev.uid).first():
-        user_dev = GroupUsers(gid=user.gid, uid=dev.uid)
-        sql_db.session.add(user_dev)
+    if not GroupUsers.query.filter_by(gid=default.gid, uid=dev.uid).first():
+        default_dev = GroupUsers(gid=default.gid, uid=dev.uid)
+        sql_db.session.add(default_dev)
 
     if not GroupUsers.query.filter_by(gid=admin.gid, uid=dev.uid).first():
         admin_dev = GroupUsers(gid=admin.gid, uid=dev.uid)
@@ -96,18 +96,18 @@ def seed_group_permissions():
         admin_endpoints_admin = GroupPermissions(gid=admin.gid, pmid=endpoints_admin.pmid)
         sql_db.session.add(admin_endpoints_admin)
 
-    # associate user to token-user
-    user = Groups.query.filter_by(group_name="user").first()
-    token_user = Permissions.query.filter_by(permission_name="token-user").first()
+    # associate default to token-default
+    default = Groups.query.filter_by(group_name="default").first()
+    token_default = Permissions.query.filter_by(permission_name="token-default").first()
 
-    if not user:
-        raise Exception("Could not find user group")
-    elif not token_user:
-        raise Exception("Could not find token-user permissions")
+    if not default:
+        raise Exception("Could not find default group")
+    elif not token_default:
+        raise Exception("Could not find token-default permissions")
 
-    if not GroupPermissions.query.filter_by(gid=user.gid, pmid=token_user.pmid).first():
-        user_token_user = GroupPermissions(gid=user.gid, pmid=token_user.pmid)
-        sql_db.session.add(user_token_user)
+    if not GroupPermissions.query.filter_by(gid=default.gid, pmid=token_default.pmid).first():
+        default_token_default = GroupPermissions(gid=default.gid, pmid=token_default.pmid)
+        sql_db.session.add(default_token_default)
 
 
 def seed_database():

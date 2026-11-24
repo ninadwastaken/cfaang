@@ -16,12 +16,13 @@ from contextlib import contextmanager
 from http import HTTPStatus
 
 from flask import Flask, request
-from flask_restx import Resource, Api  # , fields  # Namespace
+from flask_restx import Resource, Api, fields  # Namespace
 from flask_cors import CORS
 import pymongo as pm
 
 from sql_db import init_db, sql_db, ph
 from sql_db.models import Users, ApiTokens
+from sql_db.transactions import create_new_user
 
 import werkzeug.exceptions as wz
 
@@ -29,6 +30,7 @@ import states.query as sqry
 import places.query as pqry
 import security.security as sec
 import places.meet as meet
+import data.db_connect as dbc
 
 app = Flask(__name__)
 
@@ -59,10 +61,24 @@ MEET_EP = '/meet'
 MEET_RESP = 'Spots'
 HEALTH_EP = '/health'
 HEALTH_RESP = 'status'
+REGISTER_EP = '/register'
 TOKEN_EP = '/auth/token'
+READY_EP = '/ready'
 DATABASE_TIMEOUT_SECONDS = 5
 DATABASE_UNAVAILABLE = 'Database is temporarily unavailable. Please try again.'
 
+USERNAME_PASSWORD_MODEL = api.model('UserRegistration', {
+    'username': fields.String(
+        required=True,
+        min_length=3,
+        max_length=64
+    ),
+    'password': fields.String(
+        required=True,
+        min_length=12,
+        max_length=128
+    )
+})
 
 @contextmanager
 def database_request():
@@ -188,6 +204,8 @@ class Meet(Resource):
         'limit': 'Max results to return (default 50, max 500)',
         'sort': 'fair (shortest longer trip first, default) or closest '
                 '(closest to the midpoint first)',
+        'max_walk': 'Skip spots where either person walks more than this '
+                    'many minutes (optional)',
     })
     @api.response(HTTPStatus.OK.value, 'Success')
     @api.response(HTTPStatus.BAD_REQUEST.value, 'Bad query parameters')
@@ -210,11 +228,14 @@ class Meet(Resource):
             radius = float(request.args.get('radius',
                                             pqry.DEFAULT_RADIUS_M))
             limit = int(request.args.get('limit', pqry.DEFAULT_LIMIT))
+            max_walk = request.args.get('max_walk')
+            if max_walk is not None:
+                max_walk = float(max_walk)
         except KeyError:
             raise wz.BadRequest('lat1, lon1, lat2, and lon2 are required.')
         except ValueError:
-            raise wz.BadRequest('Coordinates, radius, and limit must be '
-                                'numbers.')
+            raise wz.BadRequest('Coordinates, radius, limit, and max_walk '
+                                'must be numbers.')
         category = request.args.get('category')
         place_type = request.args.get('type')
         if place_type and not category:
@@ -224,7 +245,8 @@ class Meet(Resource):
                 result = meet.find_spots(
                     (lat1, lon1), (lat2, lon2), radius=radius,
                     category=category, place_type=place_type, limit=limit,
-                    sort=request.args.get('sort', 'fair'))
+                    sort=request.args.get('sort', 'fair'),
+                    max_walk=max_walk)
         except ValueError as err:
             raise wz.BadRequest(str(err))
         return {'midpoint': result['midpoint'],
@@ -245,6 +267,32 @@ class Health(Resource):
         return {HEALTH_RESP: 'ok'}
 
 # user management endpoints
+@api.route(REGISTER_EP)
+class Register(Resource):
+    '''
+    Register (create) new users.
+    '''
+    @api.expect(USERNAME_PASSWORD_MODEL, validate=True)
+    @api.response(HTTPStatus.CREATED.value, 'User created')
+    @api.response(HTTPStatus.BAD_REQUEST.value, 'Invalid request')
+    @api.response(HTTPStatus.CONFLICT.value, 'Username already exists')
+    @limiter.limit("3 per hour")
+    def post(self):
+        data = request.get_json()
+
+        username = data['username']
+        password = data['password']
+
+        if Users.query.filter_by(username=username).first():
+            raise wz.Conflict('Username already exists.')
+
+        password_hash = ph.hash(password)
+
+        create_new_user(username, password_hash)
+
+        return {
+            'message': 'User created successfully.'
+        }, HTTPStatus.CREATED
 
 # authentication endpoints
 @api.route(TOKEN_EP)
@@ -258,8 +306,10 @@ class Token(Resource):
     @limiter.limit("5 per minute; 20 per hour")
     def post(self):
         # authenticate a user and create an api token
-        username = request.args.get('username')
-        password = request.args.get('password')
+        data = request.get_json()
+
+        username = data['username']
+        password = data['password']
 
         if not username or not password:
             raise wz.BadRequest('Username and password required.')
@@ -355,3 +405,15 @@ class Token(Resource):
             'message': 'Token revoked successfully.',
             'revoked_at': now.isoformat()
         }, HTTPStatus.OK
+
+@api.route(READY_EP)
+class Ready(Resource):
+    """Check MongoDB connectivity independently of Flask liveness."""
+
+    @api.response(HTTPStatus.OK.value, 'MongoDB reachable')
+    @api.response(HTTPStatus.SERVICE_UNAVAILABLE.value, 'Database unavailable')
+    def get(self):
+        """Ping MongoDB with a five-second database time budget."""
+        if not dbc.is_db_up():
+            raise wz.ServiceUnavailable(DATABASE_UNAVAILABLE)
+        return {HEALTH_RESP: 'ok'}

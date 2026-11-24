@@ -29,6 +29,13 @@ def build_filter(category=None, place_type=None):
     return filt
 
 
+def cap_limit(limit):
+    """
+    Keep a result limit between 1 and MAX_LIMIT.
+    """
+    return max(1, min(limit, MAX_LIMIT))
+
+
 def get_places(category=None, place_type=None, limit=DEFAULT_LIMIT):
     """
     Return a list of places, optionally filtered by category
@@ -37,7 +44,7 @@ def get_places(category=None, place_type=None, limit=DEFAULT_LIMIT):
     Limit is capped at MAX_LIMIT.
     """
     filt = build_filter(category, place_type)
-    limit = max(1, min(limit, MAX_LIMIT))
+    limit = cap_limit(limit)
     collection = get_db()[PLACES_COLLECT]
     return list(collection.find(filt, {'_id': 0}).limit(limit))
 
@@ -66,6 +73,6 @@ def get_places_near(lat, lon, radius=DEFAULT_RADIUS_M, category=None,
             '$maxDistance': radius,
         }
     }
-    limit = max(1, min(limit, MAX_LIMIT))
+    limit = cap_limit(limit)
     collection = get_db()[PLACES_COLLECT]
     return list(collection.find(filt, {'_id': 0}).limit(limit))
