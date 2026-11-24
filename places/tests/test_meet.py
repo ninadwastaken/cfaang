@@ -389,3 +389,19 @@ def test_find_spots_bad_max_walk(max_walk):
         with pytest.raises(ValueError, match='max_walk'):
             meet.find_spots(WSP, BARCLAYS, max_walk=max_walk)
     near.assert_not_called()
+
+
+def test_find_spots_too_far_apart_for_max_walk():
+    # WSP to Barclays is about 5.6 km. 15 minutes each way covers
+    # under 2 km, so no spot can work.
+    with patch('places.query.get_places_near') as near:
+        with pytest.raises(ValueError, match='too far apart'):
+            meet.find_spots(WSP, BARCLAYS, max_walk=15)
+    near.assert_not_called()
+
+
+def test_find_spots_close_enough_for_max_walk():
+    # 60 minutes each way is plenty for WSP to Barclays.
+    with patch('places.query.get_places_near', return_value=[]) as near:
+        meet.find_spots(WSP, BARCLAYS, max_walk=60)
+    near.assert_called()

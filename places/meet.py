@@ -233,7 +233,9 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     max_walk drops spots where either person walks more than that
     many minutes.
     If there are only a few unique spots nearby, the search widens.
-    With max_walk set, it never widens past what anyone could walk.
+    With max_walk set, it never widens past what anyone could walk,
+    and raises ValueError if the two people are too far apart for any
+    spot to work.
     Rank up to MAX_LIMIT candidates, deduplicate, then apply the result limit.
     """
     if sort not in SORTS:
@@ -261,6 +263,12 @@ def find_spots(person_1, person_2, radius=pqry.DEFAULT_RADIUS_M,
     max_radius = pqry.MAX_RADIUS_M
     if max_walk is not None:
         max_radius = walk_reach_m(max_walk)
+        # Every spot is at least half the distance between the two
+        # people from one of them. Past twice the reach, no spot can
+        # work, so skip the db and say why.
+        if distance_m(person_1, person_2) > 2 * max_radius:
+            raise ValueError(f'too far apart to meet within {max_walk:g} '
+                             'minutes of walking each')
     places, radius_used = search_widening(mid, radius, category,
                                           place_type, pqry.MAX_LIMIT,
                                           count=unique_count,
