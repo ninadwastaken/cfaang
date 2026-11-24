@@ -24,3 +24,9 @@ test('ignores corrupt or incompatible saved searches instead of crashing startup
     JSON.stringify({ version: 1, ...draft, person1: { name: 'Outside area', lat: 42, lon: -74 } }),
     JSON.stringify({ version: 1, ...draft, person2: null })]) assert.equal(decodeSearch(raw), null);
 });
+
+test('restores new categories without breaking existing saved searches', () => {
+  for (const category of ['Cafés', 'Parks', 'Museums', 'Restaurants', 'Bars', 'Libraries', 'Galleries']) {
+    assert.equal(decodeSearch(encodeSearch({ ...draft, category })).category, category);
+  }
+});

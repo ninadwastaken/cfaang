@@ -16,7 +16,7 @@ const p1 = { lat: 40.7359, lon: -73.9911 };
 const p2 = { lat: 40.7527, lon: -73.9772 };
 const result = { midpoint: p1, radius: 5000, Spots: [], count: 0 };
 test('sends coordinates and category mappings with the correct response casing', async () => {
-  for (const [label, category, type] of [['Cafés', 'amenity', 'cafe'], ['Parks', 'leisure', 'park'], ['Museums', 'tourism', 'museum']]) {
+  for (const [label, category, type] of [['Cafés', 'amenity', 'cafe'], ['Parks', 'leisure', 'park'], ['Museums', 'tourism', 'museum'], ['Restaurants', 'amenity', 'restaurant'], ['Bars', 'amenity', 'bar'], ['Libraries', 'amenity', 'library'], ['Galleries', 'tourism', 'gallery']]) {
     const api = client(async url => {
       const parsed = new URL(url);
       assert.equal(parsed.pathname, '/meet');

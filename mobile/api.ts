@@ -1,10 +1,18 @@
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
-export const categories = ['Cafés', 'Parks', 'Museums'] as const;
+export const categories = ['Cafés', 'Parks', 'Museums', 'Restaurants', 'Bars', 'Libraries', 'Galleries'] as const;
 export type Category = typeof categories[number];
 const filters: Record<Category, { category: string; type: string }> = {
   Cafés: { category: 'amenity', type: 'cafe' },
   Parks: { category: 'leisure', type: 'park' },
   Museums: { category: 'tourism', type: 'museum' },
+  Restaurants: { category: 'amenity', type: 'restaurant' },
+  Bars: { category: 'amenity', type: 'bar' },
+  Libraries: { category: 'amenity', type: 'library' },
+  Galleries: { category: 'tourism', type: 'gallery' },
+};
+export const categoryPlaceNames: Record<Category, string> = {
+  Cafés: 'café', Parks: 'park', Museums: 'museum', Restaurants: 'restaurant',
+  Bars: 'bar', Libraries: 'library', Galleries: 'gallery',
 };
 export const meetingSorts = ['fair', 'closest'] as const;
 export type MeetingSort = typeof meetingSorts[number];
