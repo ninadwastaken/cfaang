@@ -48,13 +48,35 @@ connectivity only, not whether places have been imported or indexes are ready.
 The Docker setup publishes the API on loopback only; use `local.sh` as above
 for physical-phone development. Use an HTTPS API URL for deployed builds.
 
+### Verify local setup
+
+After starting the API and importing places, run:
+
+```sh
+make check_setup
+# Override the API location if needed:
+make check_setup API_URL=http://127.0.0.1:8000
+```
+
+Requires Python 3 only. This read-only command checks `/health`, `/ready`, and
+an NYC café search through `/meet`, in that order. Each HTTP request has a
+10-second timeout. It prints a PASS for each successful check and stops at the
+first failure with troubleshooting guidance and a nonzero exit status.
+An empty sample search suggests checking the import; it does not prove the
+whole database is empty. A successful check confirms this sample works, not
+that every category or the mobile app is configured correctly.
+
 ### Live meeting recommendations
 
-The mobile app lets two people choose NYC landmarks and a category (cafés,
-parks, or museums). It calls `/meet` with landmark coordinates and shows real
-places from MongoDB. Landmark coordinates are approximate; address search and
-live device location are not implemented. Distances are straight-line meters
-converted to kilometers, not walking or transit times. Results follow the
+The mobile app lets two people choose NYC landmarks or pick starting points
+on a map in the iOS and Android app (web supports landmarks). Categories include
+cafés, parks, museums, restaurants, bars, libraries, and galleries. It calls
+`/meet` with the selected coordinates and shows real places from MongoDB.
+Landmark coordinates are approximate; address search and live device location
+are not implemented. Distances are straight-line meters
+converted to kilometers. Rough walking estimates assume 80 meters per minute
+and a 1.3 street-distance factor; they are not calculated routes or transit times.
+Results follow the
 selected ordering: fairest (shortest longer straight-line trip first) or
 closest to the midpoint. Transit fairness is not calculated. The backend
 retrieves up to 500 candidates nearest the midpoint within the searched radius,
@@ -82,15 +104,19 @@ add a local Compose override publishing MongoDB to loopback before running
 Flask on the host, or explicitly publish the Docker API to your trusted LAN.
 Running `local.sh` alone does not start MongoDB.
 
-Choose two landmarks, select a category, and tap **Find meeting spots**.
+Choose two starting points, select a category, and tap **Find meeting spots**.
+Starting points, category, and sort preference are saved on the device.
 Result cards show an address and listed opening hours when those details are
 available in the imported place data. Hours are shown as provided by the source;
 the app does not calculate whether a venue is currently open.
 The app starts searching within 5 km of the midpoint. The backend can expand
 the search up to 10 km; the results screen shows the radius actually searched.
-If no places match at 10 km, change the category or starting locations. Retry is available for network and server errors. Each result has a
-Google Maps directions links starting at either person's selected landmark,
-labeled “Directions from your landmark” and “Directions from their landmark.” Maps opens
+If no places match, change the category or choose starting points closer together.
+API callers can supply `max_walk` (minutes per person), which also caps search
+widening; the mobile app does not currently send this option. Retry is available
+for network and server errors. Each result has Google Maps directions links
+starting at either person's selected starting point. **Share this place** opens native sharing with the place name,
+available address, and a destination-only Google Maps link. Maps opens
 externally; the app does not compute those routes. `/meet` and `/places` share a five-second database budget per request,
 including automatic search widening. Database connection failures and timeouts
 return HTTP 503 with a retry message. API health indicates Flask

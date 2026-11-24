@@ -15,6 +15,7 @@ github: FORCE
 	git push origin master
 
 all_tests: FORCE
+	python3 -m unittest discover -s scripts/tests
 	cd $(API_DIR); make tests
 	pytest $(PYTESTFLAGS) places/tests data/tests/test_places_load.py
 	# cd $(DB_DIR); make tests
@@ -27,6 +28,11 @@ docs: FORCE
 
 local_db:
 	docker compose exec -e PYTHON=python api bash data/places/load.sh
+
+API_URL ?= http://127.0.0.1:8000
+.PHONY: check_setup
+check_setup:
+	python3 scripts/check_setup.py --api-url "$(API_URL)"
 
 local_build:
 	docker compose up -d mongo
