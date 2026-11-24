@@ -151,6 +151,16 @@ def test_meet_negative_max_walk(mock_db):
     mock_db.assert_not_called()
 
 
+@patch('places.query.get_db')
+def test_meet_too_far_apart_for_max_walk(mock_db):
+    resp = TEST_CLIENT.get(ep.MEET_EP, query_string={
+        'lat1': 40.73, 'lon1': -73.99, 'lat2': 40.68, 'lon2': -73.97,
+        'max_walk': 10})
+    assert resp.status_code == BAD_REQUEST
+    assert 'too far apart' in resp.get_json()['message']
+    mock_db.assert_not_called()
+
+
 def test_meet_missing_person():
     resp = TEST_CLIENT.get(ep.MEET_EP,
                            query_string={'lat1': 40.73, 'lon1': -73.99})
